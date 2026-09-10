@@ -24,10 +24,12 @@ Works on desktops and on iPhones/iPads with a paired Bluetooth scanner.
 
 - **Scan in / scan out** — one input field stays focused so scanner keystrokes
   always land in the right place. Toggle between *Stock in* and *Use up*.
-- **First-time barcodes** prompt for a product name, store and size, so
-  "Tesco", "Sour Cream & Chive Dip" and "200g" stay in separate fields.
-- **Items list** with search across name, store, size and barcode, tap-through
-  to a detail page, and inline +/− quantity controls.
+- **First-time barcodes** prompt for a product name, store, size and whether
+  it's frozen, so "Tesco", "Sour Cream & Chive Dip" and "200g" stay in
+  separate fields.
+- **Items list** with search across name, store, size and barcode, a
+  frozen/non-frozen filter, tap-through to a detail page, and inline +/−
+  quantity controls.
 - **Item page** — full details, edit name/store/size, minimum stock level,
   totals stocked in and used up, and the complete scan history.
 - **Shopping list** — set a minimum stock level per item; once stock reaches
@@ -35,6 +37,8 @@ Works on desktops and on iPhones/iPads with a paired Bluetooth scanner.
   Export the list as a plain-text file grouped by store.
 - **Curated stores** — admins maintain the store list; items pick from a
   dropdown rather than free text.
+- **Admin dashboard** — at-a-glance counts of items, frozen items, items to
+  buy, out-of-stock items, stores and users.
 - **Users and roles** — username/password login, admin-only user management,
   password resets, forced password change on first sign-in, emoji avatars.
 - **Full backup and restore** — export the entire database (items, scans,
@@ -101,6 +105,9 @@ at first sign-in.
 - **scans** — every stock-in and use-up event, linked to an item
 - **stores** — the curated store list
 - **users** / **sessions** — accounts (scrypt-hashed passwords) and login sessions
+
+Aggregate counts across these tables are served from `/api/stats` and shown on
+the admin dashboard.
 
 ## Backups
 
