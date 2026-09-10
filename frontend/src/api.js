@@ -47,6 +47,8 @@ export const exportBackup = () => request('/api/backup');
 export const restoreBackup = (data) =>
   request('/api/restore', { method: 'POST', body: JSON.stringify({ data }) });
 
+export const getStats = () => request('/api/stats');
+
 export const listItems = (q = '', neededOnly = false, frozen = null) => {
   const params = new URLSearchParams();
   if (q) params.set('q', q);

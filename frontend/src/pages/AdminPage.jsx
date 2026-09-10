@@ -1,11 +1,16 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { exportBackup, restoreBackup } from '../api.js';
+import { exportBackup, getStats, restoreBackup } from '../api.js';
 import { ADMIN_ERRORS } from '../adminErrors.js';
 
 export default function AdminPage() {
   const [status, setStatus] = useState(null);
+  const [stats, setStats] = useState(null);
   const backupRef = useRef(null);
+
+  useEffect(() => {
+    getStats().then(setStats).catch(() => {});
+  }, []);
 
   const downloadBackup = async () => {
     try {
@@ -45,6 +50,35 @@ export default function AdminPage() {
   return (
     <section className="stack">
       <h1>Admin</h1>
+
+      {stats && (
+        <div className="stats-grid">
+          <div className="stat-card">
+            <strong>{stats.items}</strong>
+            <span className="muted">Items</span>
+          </div>
+          <div className="stat-card">
+            <strong>{stats.frozenItems}</strong>
+            <span className="muted">Frozen items</span>
+          </div>
+          <div className="stat-card">
+            <strong>{stats.neededItems}</strong>
+            <span className="muted">To buy</span>
+          </div>
+          <div className="stat-card">
+            <strong>{stats.outOfStockItems}</strong>
+            <span className="muted">Out of stock</span>
+          </div>
+          <div className="stat-card">
+            <strong>{stats.stores}</strong>
+            <span className="muted">Stores</span>
+          </div>
+          <div className="stat-card">
+            <strong>{stats.users}</strong>
+            <span className="muted">Users</span>
+          </div>
+        </div>
+      )}
 
       <div className="admin-links">
         <Link className="card admin-link" to="/admin/users">

@@ -272,6 +272,26 @@ h2 { font-size: 1.05rem; margin: 0.5rem 0 0; }
   gap: 0.75rem;
 }
 
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 0.75rem;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.stat-card strong { font-size: 1.4rem; }
+.stat-card .muted { font-size: 0.8rem; }
+
 .admin-link {
   gap: 0.25rem;
   color: inherit;
@@ -299,36 +319,42 @@ h2 { font-size: 1.05rem; margin: 0.5rem 0 0; }
   .list li { grid-template-columns: auto 1fr auto; }
   .list li .muted { grid-column: 2 / -1; font-size: 0.85rem; }
 
-  /* Tables become stacked cards so handhelds never scroll sideways. */
+  /* Tables become single-line cards so handhelds never scroll sideways. */
   .table-wrap { overflow-x: visible; background: none; border: none; }
-  .table, .table tbody, .table tr, .table td { display: block; width: 100%; }
+  .table, .table tbody { display: block; width: 100%; }
   .table thead { display: none; }
 
   .table tr {
-    margin-bottom: 0.6rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.35rem;
+    padding: 0.4rem 0.6rem;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    overflow: hidden;
   }
 
   .table td {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.75rem;
+    display: block;
+    padding: 0;
+    border-bottom: none;
     white-space: normal;
     overflow-wrap: anywhere;
   }
 
-  .table td::before {
-    content: attr(data-label);
-    flex: 0 0 auto;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--muted);
-  }
+  .table td::before { content: none; }
+
+  .table td:first-child { flex: 0 0 auto; }
+  .table td:nth-child(2) { flex: 1 1 auto; min-width: 0; }
+  .table td:last-child { flex: 0 0 auto; }
+
+  /* Card background lives on the row; child cells must stay transparent to avoid clipping it. */
+  .table tr.out-of-stock td, .table tr.needed td { background: none; }
+  .table tr.out-of-stock { background: var(--zero-stock); }
+  .table tr.needed { background: var(--needed); }
+  .table tbody tr.row-link.out-of-stock:hover { background: var(--zero-stock); }
+  .table tbody tr.row-link.needed:hover { background: var(--needed); }
 
   .table td:empty { display: none; }
   .table .input { max-width: 60%; }

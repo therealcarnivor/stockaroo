@@ -7,6 +7,31 @@ const router = express.Router();
 const BARCODE_RE = /^[A-Za-z0-9._-]{1,64}$/;
 const BACKUP_VERSION = 2;
 
+const NEEDED_SQL = '(min_stock > 0 AND quantity <= min_stock)';
+
+router.get('/stats', (req, res) => {
+  const items = db
+    .prepare(
+      `SELECT
+         COUNT(*) AS total,
+         COALESCE(SUM(frozen), 0) AS frozen,
+         COALESCE(SUM(${NEEDED_SQL}), 0) AS needed,
+         COALESCE(SUM(quantity = 0), 0) AS outOfStock
+       FROM items`
+    )
+    .get();
+  const stores = db.prepare('SELECT COUNT(*) AS total FROM stores').get();
+  const users = db.prepare('SELECT COUNT(*) AS total FROM users').get();
+  res.json({
+    items: items.total,
+    frozenItems: items.frozen,
+    neededItems: items.needed,
+    outOfStockItems: items.outOfStock,
+    stores: stores.total,
+    users: users.total
+  });
+});
+
 // Full-database snapshot. Includes password hashes, so treat the file as a secret.
 router.get('/backup', requireAdmin, (req, res) => {
   res.setHeader('Content-Disposition', 'attachment; filename="stockaroo-backup.json"');
