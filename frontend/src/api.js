@@ -47,10 +47,11 @@ export const exportBackup = () => request('/api/backup');
 export const restoreBackup = (data) =>
   request('/api/restore', { method: 'POST', body: JSON.stringify({ data }) });
 
-export const listItems = (q = '', neededOnly = false) => {
+export const listItems = (q = '', neededOnly = false, frozen = null) => {
   const params = new URLSearchParams();
   if (q) params.set('q', q);
   if (neededOnly) params.set('needed', '1');
+  if (frozen !== null) params.set('frozen', frozen ? '1' : '0');
   const query = params.toString();
   return request(`/api/items${query ? `?${query}` : ''}`);
 };
@@ -59,10 +60,10 @@ export const listScans = () => request('/api/scans');
 
 export const itemHistory = (id) => request(`/api/items/${id}/history`);
 
-export const scan = ({ barcode, name = null, store = null, size = null, delta = 1 }) =>
+export const scan = ({ barcode, name = null, store = null, size = null, frozen = false, delta = 1 }) =>
   request('/api/scans', {
     method: 'POST',
-    body: JSON.stringify({ barcode, name, store, size, delta })
+    body: JSON.stringify({ barcode, name, store, size, frozen, delta })
   });
 
 export const updateItem = (id, patch) =>

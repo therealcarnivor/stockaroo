@@ -2,13 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { listScans, listStores, scan } from '../api.js';
 import { enqueue, flush, queueSize } from '../offline.js';
 import BarcodeIcon from '../components/BarcodeIcon.jsx';
+import FrozenIcon from '../components/FrozenIcon.jsx';
 import StoreSelect from '../components/StoreSelect.jsx';
 
 export default function ScanPage({ online }) {
   const [barcode, setBarcode] = useState('');
   const [direction, setDirection] = useState(1); // 1 = stocking in, -1 = using up
   const [pending, setPending] = useState(null); // barcode awaiting a name
-  const [details, setDetails] = useState({ name: '', store: '', size: '' });
+  const [details, setDetails] = useState({ name: '', store: '', size: '', frozen: false });
   const [status, setStatus] = useState(null);
   const [recent, setRecent] = useState([]);
   const [stores, setStores] = useState([]);
@@ -51,14 +52,14 @@ export default function ScanPage({ online }) {
       const item = await scan(payload);
       setStatus({ kind: 'ok', text: `${item.name} — qty ${item.quantity}` });
       setPending(null);
-      setDetails({ name: '', store: '', size: '' });
+      setDetails({ name: '', store: '', size: '', frozen: false });
       refresh();
     } catch (err) {
       if (err.offline) {
         setQueued(enqueue(payload));
         setStatus({ kind: 'info', text: `Offline — ${code} queued` });
         setPending(null);
-        setDetails({ name: '', store: '', size: '' });
+        setDetails({ name: '', store: '', size: '', frozen: false });
       } else if (err.status === 404 && err.body?.error === 'unknown_barcode') {
         setPending(code);
         setStatus({ kind: 'info', text: `New barcode ${code} — add its details` });
@@ -80,7 +81,8 @@ export default function ScanPage({ online }) {
       submitScan(pending, {
         name: details.name.trim(),
         store: details.store.trim(),
-        size: details.size.trim()
+        size: details.size.trim(),
+        frozen: details.frozen
       });
     }
   };
@@ -155,6 +157,14 @@ export default function ScanPage({ online }) {
               onChange={(e) => setDetails({ ...details, size: e.target.value })}
               placeholder="Size, e.g. 200g"
             />
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={details.frozen}
+                onChange={(e) => setDetails({ ...details, frozen: e.target.checked })}
+              />
+              Frozen
+            </label>
           </div>
           <div className="row">
             <button className="btn primary" type="submit">Save</button>
@@ -163,7 +173,7 @@ export default function ScanPage({ online }) {
               type="button"
               onClick={() => {
                 setPending(null);
-                setDetails({ name: '', store: '', size: '' });
+                setDetails({ name: '', store: '', size: '', frozen: false });
                 setStatus(null);
               }}
             >
@@ -188,15 +198,18 @@ export default function ScanPage({ online }) {
         <ul className="list">
           {recent.slice(0, VISIBLE_SCANS).map((s) => (
             <li key={s.id}>
-              <button
-                className="icon-toggle"
-                onClick={() => toggleBarcode(s.id)}
-                aria-expanded={revealed.has(s.id)}
-                aria-label={`Show barcode for ${s.name}`}
-                title="Show barcode"
-              >
-                <BarcodeIcon missing={!s.barcode} />
-              </button>
+              <span className="icon-cell">
+                <button
+                  className="icon-toggle"
+                  onClick={() => toggleBarcode(s.id)}
+                  aria-expanded={revealed.has(s.id)}
+                  aria-label={`Show barcode for ${s.name}`}
+                  title="Show barcode"
+                >
+                  <BarcodeIcon missing={!s.barcode} />
+                </button>
+                {!!s.frozen && <FrozenIcon />}
+              </span>
               <span>
                 {s.name}
                 {(s.store || s.size) && (

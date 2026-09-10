@@ -16,7 +16,7 @@ router.get('/backup', requireAdmin, (req, res) => {
     stores: db.prepare('SELECT id, name, created_at FROM stores ORDER BY id').all(),
     items: db
       .prepare(
-        `SELECT id, barcode, name, store, size, quantity, min_stock, created_at, updated_at
+        `SELECT id, barcode, name, store, size, quantity, min_stock, frozen, created_at, updated_at
          FROM items ORDER BY id`
       )
       .all(),
@@ -68,8 +68,8 @@ router.post('/restore', requireAdmin, (req, res) => {
     for (const s of stores) addStore.run(s.id ?? null, String(s.name).slice(0, 60), s.created_at ?? null);
 
     const addItem = db.prepare(
-      `INSERT INTO items (id, barcode, name, store, size, quantity, min_stock, created_at, updated_at)
-       VALUES (@id, @barcode, @name, @store, @size, @quantity, @min_stock,
+      `INSERT INTO items (id, barcode, name, store, size, quantity, min_stock, frozen, created_at, updated_at)
+       VALUES (@id, @barcode, @name, @store, @size, @quantity, @min_stock, @frozen,
                COALESCE(@created_at, datetime('now')), COALESCE(@updated_at, datetime('now')))`
     );
     for (const i of items) {
@@ -81,6 +81,7 @@ router.post('/restore', requireAdmin, (req, res) => {
         size: String(i.size ?? '').slice(0, 60),
         quantity: Number.isInteger(i.quantity) && i.quantity >= 0 ? i.quantity : 0,
         min_stock: Number.isInteger(i.min_stock) && i.min_stock >= 0 ? i.min_stock : 0,
+        frozen: i.frozen ? 1 : 0,
         created_at: i.created_at ?? null,
         updated_at: i.updated_at ?? null
       });

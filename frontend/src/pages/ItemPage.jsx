@@ -101,6 +101,20 @@ export default function ItemPage({ isAdmin }) {
         )}
 
         <dl className="details">
+          <dt>Storage</dt>
+          <dd>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={!!item.frozen}
+                onChange={async (e) => {
+                  await updateItem(item.id, { frozen: e.target.checked });
+                  refresh();
+                }}
+              />
+              Frozen
+            </label>
+          </dd>
           <dt>Minimum stock</dt>
           <dd>
             <input

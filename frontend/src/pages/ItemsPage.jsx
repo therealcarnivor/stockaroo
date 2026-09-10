@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listItems, scan } from '../api.js';
 import BarcodeIcon from '../components/BarcodeIcon.jsx';
+import FrozenIcon from '../components/FrozenIcon.jsx';
 
 const REFRESH_MS = 5000;
 
@@ -10,12 +11,13 @@ export default function ItemsPage({ online }) {
   const [items, setItems] = useState([]);
   const [q, setQ] = useState('');
   const [neededOnly, setNeededOnly] = useState(false);
+  const [frozen, setFrozen] = useState(null); // null = all, true = frozen, false = ambient
   const [status, setStatus] = useState(null);
   const [revealed, setRevealed] = useState(() => new Set());
 
   const refresh = useCallback(
-    () => listItems(q, neededOnly).then(setItems).catch(() => {}),
-    [q, neededOnly]
+    () => listItems(q, neededOnly, frozen).then(setItems).catch(() => {}),
+    [q, neededOnly, frozen]
   );
 
   useEffect(() => {
@@ -60,18 +62,23 @@ export default function ItemsPage({ online }) {
       const byStore = new Map();
       for (const item of needed) {
         const key = item.store || 'Any store';
-        if (!byStore.has(key)) byStore.set(key, []);
-        byStore.get(key).push(item);
+        if (!byStore.has(key)) byStore.set(key, { frozen: [], ambient: [] });
+        byStore.get(key)[item.frozen ? 'frozen' : 'ambient'].push(item);
       }
 
       const lines = [`Stockaroo shopping list — ${new Date().toLocaleString()}`, ''];
       for (const store of [...byStore.keys()].sort()) {
-        lines.push(`${store}`, '-'.repeat(store.length));
-        for (const item of byStore.get(store).sort((a, b) => a.name.localeCompare(b.name))) {
-          const size = item.size ? ` (${item.size})` : '';
-          lines.push(`  [ ] ${item.name}${size} — have ${item.quantity}, min ${item.min_stock}`);
+        lines.push(store, '='.repeat(store.length));
+        for (const [group, heading] of [['ambient', 'Ambient'], ['frozen', 'Frozen']]) {
+          const list = byStore.get(store)[group];
+          if (list.length === 0) continue;
+          lines.push(`  ${heading}`);
+          for (const item of list.sort((a, b) => a.name.localeCompare(b.name))) {
+            const size = item.size ? ` (${item.size})` : '';
+            lines.push(`    [ ] ${item.name}${size} — have ${item.quantity}, min ${item.min_stock}`);
+          }
+          lines.push('');
         }
-        lines.push('');
       }
       lines.push(`${needed.length} item${needed.length > 1 ? 's' : ''} to buy.`);
 
@@ -108,6 +115,18 @@ export default function ItemsPage({ online }) {
         >
           {neededOnly ? 'Showing to buy' : 'To buy only'}
         </button>
+        <select
+          className="input auto"
+          value={frozen === null ? 'all' : frozen ? 'frozen' : 'ambient'}
+          onChange={(e) =>
+            setFrozen(e.target.value === 'all' ? null : e.target.value === 'frozen')
+          }
+          aria-label="Filter by storage"
+        >
+          <option value="all">All goods</option>
+          <option value="frozen">Frozen only</option>
+          <option value="ambient">Non-frozen only</option>
+        </select>
       </div>
 
       {status && <p className={`status ${status.kind}`}>{status.text}</p>}
@@ -129,16 +148,19 @@ export default function ItemsPage({ online }) {
                 onClick={() => navigate(`/items/${item.id}`)}
               >
                 <td data-label="Code" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    className="icon-toggle"
-                    onClick={() => item.barcode && toggleBarcode(item.id)}
-                    disabled={!item.barcode}
-                    aria-expanded={revealed.has(item.id)}
-                    aria-label={item.barcode ? `Show barcode for ${item.name}` : 'No barcode'}
-                    title={item.barcode ? 'Show barcode' : 'No barcode'}
-                  >
-                    <BarcodeIcon missing={!item.barcode} />
-                  </button>
+                  <span className="icon-cell">
+                    <button
+                      className="icon-toggle"
+                      onClick={() => item.barcode && toggleBarcode(item.id)}
+                      disabled={!item.barcode}
+                      aria-expanded={revealed.has(item.id)}
+                      aria-label={item.barcode ? `Show barcode for ${item.name}` : 'No barcode'}
+                      title={item.barcode ? 'Show barcode' : 'No barcode'}
+                    >
+                      <BarcodeIcon missing={!item.barcode} />
+                    </button>
+                    {!!item.frozen && <FrozenIcon />}
+                  </span>
                 </td>
                 <td data-label="Name">
                   {item.name}

@@ -19,14 +19,17 @@ const NEEDED_SQL = '(min_stock > 0 AND quantity <= min_stock)';
 router.get('/items', (req, res) => {
   const q = cleanName(req.query.q);
   const neededOnly = req.query.needed === '1';
+  // Absent means "either"; '1'/'0' narrow to frozen or ambient.
+  const frozen = req.query.frozen === '1' ? 1 : req.query.frozen === '0' ? 0 : null;
   const rows = db
     .prepare(
       `SELECT *, ${NEEDED_SQL} AS needed FROM items
        WHERE (@like IS NULL OR name LIKE @like OR barcode LIKE @like OR store LIKE @like OR size LIKE @like)
          AND (@neededOnly = 0 OR ${NEEDED_SQL})
+         AND (@frozen IS NULL OR frozen = @frozen)
        ORDER BY name COLLATE NOCASE LIMIT 500`
     )
-    .all({ like: q ? `%${q}%` : null, neededOnly: neededOnly ? 1 : 0 });
+    .all({ like: q ? `%${q}%` : null, neededOnly: neededOnly ? 1 : 0, frozen });
   res.json(rows);
 });
 
@@ -64,6 +67,7 @@ router.post('/scans', (req, res) => {
   const name = cleanName(req.body?.name);
   const store = cleanField(req.body?.store);
   const size = cleanField(req.body?.size);
+  const frozen = req.body?.frozen ? 1 : 0;
   const delta = Number.isInteger(req.body?.delta) ? req.body.delta : 1;
 
   if (!BARCODE_RE.test(barcode)) return res.status(400).json({ error: 'invalid_barcode' });
@@ -77,8 +81,10 @@ router.post('/scans', (req, res) => {
     if (!item) {
       if (!name) return { needsName: true, barcode };
       const info = db
-        .prepare('INSERT INTO items (barcode, name, store, size, quantity) VALUES (?, ?, ?, ?, 0)')
-        .run(barcode, name, store, size);
+        .prepare(
+          'INSERT INTO items (barcode, name, store, size, frozen, quantity) VALUES (?, ?, ?, ?, ?, 0)'
+        )
+        .run(barcode, name, store, size, frozen);
       item = db.prepare('SELECT * FROM items WHERE id = ?').get(info.lastInsertRowid);
       created = true;
     }
@@ -129,6 +135,13 @@ router.patch('/items/:id', (req, res) => {
     db.prepare('UPDATE items SET min_stock = ? WHERE id = ?').run(min, id);
   }
 
+  if (typeof req.body?.frozen === 'boolean') {
+    db.prepare(`UPDATE items SET frozen = ?, updated_at = datetime('now') WHERE id = ?`).run(
+      req.body.frozen ? 1 : 0,
+      id
+    );
+  }
+
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(id);
   if (!item) return res.status(404).json({ error: 'not_found' });
   res.json(item);
@@ -144,7 +157,7 @@ router.delete('/items/:id', (req, res) => {
 router.get('/scans', (req, res) => {
   const rows = db
     .prepare(
-      `SELECT s.id, s.delta, s.scanned_at, i.barcode, i.name, i.store, i.size
+      `SELECT s.id, s.delta, s.scanned_at, i.barcode, i.name, i.store, i.size, i.frozen
        FROM scans s JOIN items i ON i.id = s.item_id
        ORDER BY s.id DESC LIMIT 100`
     )

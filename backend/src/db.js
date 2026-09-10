@@ -61,6 +61,9 @@ for (const column of ['store', 'size']) {
 if (!itemColumns.includes('min_stock')) {
   db.exec('ALTER TABLE items ADD COLUMN min_stock INTEGER NOT NULL DEFAULT 0');
 }
+if (!itemColumns.includes('frozen')) {
+  db.exec('ALTER TABLE items ADD COLUMN frozen INTEGER NOT NULL DEFAULT 0');
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS stores (

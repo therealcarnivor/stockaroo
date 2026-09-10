@@ -110,4 +110,4 @@ replaces all existing data and signs everyone out.
 
 ## Licence
 
-See [LICENSE](LICENSE).Stockaroo
+See [LICENSE](LICENSE).

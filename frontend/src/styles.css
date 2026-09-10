@@ -8,6 +8,7 @@
   --danger: #c2410c;
   --zero-stock: #fdf3c4;
   --needed: #fcdcdc;
+  --frozen: #1d7fd6;
   --radius: 12px;
 }
 
@@ -21,6 +22,7 @@
   --danger: #f87171;
   --zero-stock: #4a4321;
   --needed: #5a2626;
+  --frozen: #58b6ff;
 }
 
 * { box-sizing: border-box; }
@@ -211,6 +213,9 @@ h2 { font-size: 1.05rem; margin: 0.5rem 0 0; }
 .icon-toggle[aria-expanded='true'] { color: var(--accent); border-color: var(--accent); }
 .icon-toggle:disabled { opacity: 0.45; cursor: default; }
 
+.icon-cell { display: inline-flex; align-items: center; gap: 0.4rem; }
+.frozen-icon { color: var(--frozen); flex: none; }
+
 .barcode-reveal { display: block; font-size: 0.85rem; overflow-wrap: anywhere; }
 
 .meta { display: block; font-size: 0.85rem; color: var(--muted); }
@@ -283,6 +288,7 @@ h2 { font-size: 1.05rem; margin: 0.5rem 0 0; }
 .stepper .qty { min-width: 2ch; text-align: center; }
 
 .min-input { width: 4.5rem; text-align: center; }
+.input.auto { width: auto; }
 
 .status { margin: 0; padding: 0.6rem 0.9rem; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border); }
 .status.ok { border-color: var(--accent); }

@@ -138,6 +138,25 @@ test('restore rejects a backup with no admin', async () => {
   assert.equal((await res.json()).error, 'no_admin_in_backup');
 });
 
+test('frozen goods can be flagged and filtered', async () => {
+  const res = await api('POST', '/api/scans', { barcode: '555', name: 'Peas', frozen: true });
+  assert.equal(res.status, 201);
+  assert.equal((await res.json()).frozen, 1);
+
+  const frozen = await (await api('GET', '/api/items?frozen=1')).json();
+  assert.deepEqual(frozen.map((i) => i.barcode), ['555']);
+
+  const ambient = await (await api('GET', '/api/items?frozen=0')).json();
+  assert.ok(ambient.length > 0);
+  assert.ok(!ambient.some((i) => i.barcode === '555'));
+
+  const [item] = frozen;
+  await api('PATCH', `/api/items/${item.id}`, { frozen: false });
+  assert.deepEqual(await (await api('GET', '/api/items?frozen=1')).json(), []);
+
+  await api('DELETE', `/api/items/${item.id}`);
+});
+
 test('a minimum stock level puts an item on the to-buy list', async () => {
   const [item] = await (await api('GET', '/api/items?q=Rice')).json();
   assert.equal(item.quantity, 4);
