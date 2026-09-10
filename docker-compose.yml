@@ -1,0 +1,18 @@
+services:
+  stockaroo:
+    build: .
+    container_name: stockaroo
+    restart: unless-stopped
+    ports:
+      - "3003:3000"
+    environment:
+      DATA_DIR: /app/data
+      # Number of reverse proxy hops in front of this container (default 1).
+      TRUST_PROXY_HOPS: ${STOCKAROO_TRUST_PROXY_HOPS:-1}
+      # Used only to seed the first admin on an empty database.
+      INITIAL_ADMIN_USER: ${STOCKAROO_INITIAL_ADMIN_USER:-admin}
+      INITIAL_ADMIN_PASSWORD: ${STOCKAROO_INITIAL_ADMIN_PASSWORD:-}
+    volumes:
+      - /docker/stockaroo/config:/app/data
+
+

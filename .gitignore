@@ -1,0 +1,16 @@
+node_modules/
+dist/
+backend/public/
+backend/data/
+data/
+.env
+*.db
+*.db-shm
+*.db-wal
+*.log
+.copilotignore
+.continue/agents/*
+.continue/models/*
+.continue/sessions/*
+.continue/cache/*
+.continue/tmp/*
