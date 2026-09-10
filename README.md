@@ -4,6 +4,20 @@ A home food-stock tracker. Scan barcodes with a Bluetooth or USB HID barcode
 scanner (the kind that behaves like a keyboard) to record what you have in,
 what you've used up, and what needs buying again.
 
+The whole design is built around one idea: the fastest way to keep a kitchen
+inventory honest is to make logging take less than a second. Point, beep, done.
+There's no product-database lookup to wait on, no photo to take, no form to
+fill in — a barcode arrives as keystrokes, the count changes, and you move on
+to the next tin. Anything that adds friction to that moment means the log stops
+getting updated, and a stock list nobody updates is worse than no stock list.
+
+That's why the rest of the app stays deliberately small. Items carry only what
+you need to shop from — a name, the store, the pack size and a count — and the
+only clever bit is a minimum stock level that decides when something belongs on
+the shopping list. Everything lives in a single SQLite file on your own machine,
+so there's no account to create, no subscription, and no third-party service
+holding a record of your groceries.
+
 Works on desktops and on iPhones/iPads with a paired Bluetooth scanner.
 
 ## Features
