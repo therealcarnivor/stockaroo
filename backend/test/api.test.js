@@ -100,11 +100,22 @@ test('a full backup round-trips the whole database', async () => {
   await api('POST', '/api/scans', { barcode: '333', name: 'Pasta' });
   await api('POST', '/api/scans', { barcode: '222', delta: 3 });
 
+  // Assign a brand and a barcode alias so their round-trip can be checked too.
+  await api('POST', '/api/brands', { name: 'Tilda' });
+  const before = await (await api('GET', '/api/items')).json();
+  const rice = before.find((i) => i.barcode === '222');
+  await api('PATCH', `/api/items/${rice.id}`, { brand: 'Tilda' });
+  await api('POST', `/api/items/${rice.id}/barcodes`, { barcode: '222-ALT' });
+
   const backup = await (await api('GET', '/api/backup')).json();
-  assert.equal(backup.version, 3);
+  assert.equal(backup.version, 4);
   assert.ok(backup.items.length >= 2);
+  assert.ok(backup.brands.some((b) => b.name === 'Tilda'));
+  assert.ok(backup.items.find((i) => i.barcode === '222').brand === 'Tilda');
+  assert.ok(backup.item_barcodes.some((b) => b.barcode === '222-ALT'));
   assert.ok(backup.users.some((u) => u.username === 'admin' && u.password_hash));
   assert.ok(backup.scans.length > 0);
+  assert.ok(backup.scans.every((s) => typeof s.created === 'number'));
 
   // Wipe an item, then restore and confirm it comes back.
   const doomed = backup.items[0];
@@ -113,6 +124,7 @@ test('a full backup round-trips the whole database', async () => {
 
   const result = await (await api('POST', '/api/restore', { data: backup })).json();
   assert.equal(result.items, backup.items.length);
+  assert.equal(result.brands, backup.brands.length);
   assert.equal(result.users, backup.users.length);
 
   // The restore drops sessions, so sign back in.
@@ -128,6 +140,15 @@ test('a full backup round-trips the whole database', async () => {
   const items = await (await api('GET', '/api/items')).json();
   assert.equal(items.length, backup.items.length);
   assert.ok(items.some((i) => i.barcode === doomed.barcode));
+
+  // Confirm the brand and extra barcode alias survived the restore.
+  const restoredRice = items.find((i) => i.barcode === '222');
+  assert.equal(restoredRice.brand, 'Tilda');
+  const riceHistory = await (await api('GET', `/api/items/${restoredRice.id}/history`)).json();
+  assert.ok(riceHistory.item.barcodes.includes('222-ALT'));
+
+  const brandsAfter = await (await api('GET', '/api/brands')).json();
+  assert.ok(brandsAfter.some((b) => b.name === 'Tilda'));
 });
 
 test('restore rejects a backup with no admin', async () => {

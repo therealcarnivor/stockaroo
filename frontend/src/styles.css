@@ -293,6 +293,7 @@ h2 { font-size: 1.05rem; margin: 0.5rem 0 0; }
 
 .history-row { grid-template-columns: auto 1fr auto; }
 .store-row { grid-template-columns: 1fr auto; }
+.store-row > .row { justify-content: flex-end; }
 .barcode-row { grid-template-columns: 1fr auto; padding: 0.4rem 0.6rem; }
 .barcode-list { gap: 0.35rem; margin-bottom: 0.5rem; }
 

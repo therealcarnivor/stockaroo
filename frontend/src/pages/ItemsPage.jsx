@@ -108,7 +108,7 @@ export default function ItemsPage({ online }) {
             className="input"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search name, store, size or barcode"
+            placeholder="Search name, brand, store, size or barcode"
           />
           {q && (
             <button
@@ -176,7 +176,7 @@ export default function ItemsPage({ online }) {
                   </span>
                 </td>
                 <td data-label="Name">
-                  {item.name}
+                  {item.brand ? `${item.brand} - ${item.name}` : item.name}
                   {(item.store || item.size) && (
                     <span className="meta">{[item.store, item.size].filter(Boolean).join(' · ')}</span>
                   )}

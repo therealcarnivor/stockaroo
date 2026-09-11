@@ -13,6 +13,10 @@ const cleanField = (v) => (typeof v === 'string' ? v.trim().slice(0, 60) : '');
 const knownStore = (name) =>
   name === '' || !!db.prepare('SELECT 1 FROM stores WHERE name = ?').get(name);
 
+// Brands are curated by admins; items may only reference an existing one (or none).
+const knownBrand = (name) =>
+  name === '' || !!db.prepare('SELECT 1 FROM brands WHERE name = ?').get(name);
+
 // An item only joins the shopping list once a minimum is set and stock reaches it.
 const NEEDED_SQL = '(min_stock > 0 AND quantity <= min_stock)';
 
@@ -25,7 +29,7 @@ router.get('/items', (req, res) => {
     .prepare(
       `SELECT DISTINCT i.*, ${NEEDED_SQL} AS needed FROM items i
        LEFT JOIN item_barcodes b ON b.item_id = i.id
-       WHERE (@like IS NULL OR i.name LIKE @like OR b.barcode LIKE @like OR i.store LIKE @like OR i.size LIKE @like)
+       WHERE (@like IS NULL OR i.name LIKE @like OR b.barcode LIKE @like OR i.store LIKE @like OR i.brand LIKE @like OR i.size LIKE @like)
          AND (@neededOnly = 0 OR ${NEEDED_SQL})
          AND (@frozen IS NULL OR i.frozen = @frozen)
        ORDER BY i.name COLLATE NOCASE LIMIT 500`
@@ -125,11 +129,14 @@ router.patch('/items/:id', (req, res) => {
   const name = cleanName(req.body?.name);
   if (name) db.prepare(`UPDATE items SET name = ?, updated_at = datetime('now') WHERE id = ?`).run(name, id);
 
-  for (const field of ['store', 'size']) {
+  for (const field of ['store', 'size', 'brand']) {
     if (typeof req.body?.[field] === 'string') {
       const value = cleanField(req.body[field]);
       if (field === 'store' && !knownStore(value)) {
         return res.status(400).json({ error: 'unknown_store' });
+      }
+      if (field === 'brand' && !knownBrand(value)) {
+        return res.status(400).json({ error: 'unknown_brand' });
       }
       db.prepare(`UPDATE items SET ${field} = ?, updated_at = datetime('now') WHERE id = ?`).run(
         value,

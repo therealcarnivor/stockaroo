@@ -37,7 +37,7 @@ export default function AdminPage() {
       const result = await restoreBackup(data);
       setStatus({
         kind: 'ok',
-        text: `Restored ${result.items} items, ${result.stores} stores, ${result.scans} scans, ${result.users} users.`
+        text: `Restored ${result.items} items, ${result.stores} stores, ${result.brands} brands, ${result.scans} scans, ${result.users} users.`
       });
     } catch (err) {
       setStatus({
@@ -85,8 +85,8 @@ export default function AdminPage() {
             <span className="muted">Stores</span>
           </div>
           <div className="stat-card">
-            <strong>{stats.users}</strong>
-            <span className="muted">Users</span>
+            <strong>{stats.brands}</strong>
+            <span className="muted">Brands</span>
           </div>
         </div>
       )}
@@ -99,6 +99,10 @@ export default function AdminPage() {
         <Link className="card admin-link" to="/admin/stores">
           <strong>Stores</strong>
           <span className="muted">Curate the store list used by items</span>
+        </Link>
+        <Link className="card admin-link" to="/admin/brands">
+          <strong>Brands</strong>
+          <span className="muted">Curate the brand list used by items</span>
         </Link>
       </div>
 

@@ -4,6 +4,7 @@ import {
   addBarcode,
   deleteItem,
   itemHistory,
+  listBrands,
   listItems,
   listStores,
   mergeItem,
@@ -12,6 +13,7 @@ import {
   updateItem
 } from '../api.js';
 import { ADMIN_ERRORS } from '../adminErrors.js';
+import BrandSelect from '../components/BrandSelect.jsx';
 import StoreSelect from '../components/StoreSelect.jsx';
 
 // Ranks candidates by shared name words so the likely duplicate is preselected.
@@ -37,8 +39,9 @@ export default function ItemPage({ isAdmin }) {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState({ name: '', store: '', size: '' });
+  const [draft, setDraft] = useState({ name: '', store: '', brand: '', size: '' });
   const [stores, setStores] = useState([]);
+  const [brands, setBrands] = useState([]);
   const [error, setError] = useState(null);
   const [status, setStatus] = useState(null);
   const [newBarcode, setNewBarcode] = useState('');
@@ -55,6 +58,8 @@ export default function ItemPage({ isAdmin }) {
 
   useEffect(() => { listStores().then(setStores).catch(() => {}); }, []);
 
+  useEffect(() => { listBrands().then(setBrands).catch(() => {}); }, []);
+
   if (error) return <p className="status error">{error}</p>;
   if (!data) return <p className="muted">Loading…</p>;
 
@@ -69,6 +74,7 @@ export default function ItemPage({ isAdmin }) {
     await updateItem(item.id, {
       name: draft.name.trim(),
       store: draft.store.trim(),
+      brand: draft.brand.trim(),
       size: draft.size.trim()
     });
     setEditing(false);
@@ -184,6 +190,12 @@ export default function ItemPage({ isAdmin }) {
                 value={draft.store}
                 onChange={(store) => setDraft({ ...draft, store })}
               />
+              <BrandSelect
+                className="input grow"
+                brands={brands}
+                value={draft.brand}
+                onChange={(brand) => setDraft({ ...draft, brand })}
+              />
               <input
                 className="input grow"
                 value={draft.size}
@@ -203,7 +215,12 @@ export default function ItemPage({ isAdmin }) {
               className="btn small"
               onClick={() => {
                 setEditing(true);
-                setDraft({ name: item.name, store: item.store || '', size: item.size || '' });
+                setDraft({
+                  name: item.name,
+                  store: item.store || '',
+                  brand: item.brand || '',
+                  size: item.size || ''
+                });
               }}
             >
               Edit
@@ -250,6 +267,8 @@ export default function ItemPage({ isAdmin }) {
           </dd>
           <dt>Store</dt>
           <dd>{item.store || <span className="muted">Not set</span>}</dd>
+          <dt>Brand</dt>
+          <dd>{item.brand || <span className="muted">Not set</span>}</dd>
           <dt>Size</dt>
           <dd>{item.size || <span className="muted">Not set</span>}</dd>
           <dt>Barcode</dt>

@@ -6,6 +6,7 @@ const itemsRouter = require('./routes/items');
 const dataRouter = require('./routes/data');
 const usersRouter = require('./routes/users');
 const storesRouter = require('./routes/stores');
+const brandsRouter = require('./routes/brands');
 const { router: authRouter } = require('./routes/auth');
 const { requireAuth, requireAdmin } = require('./session');
 
@@ -38,6 +39,7 @@ app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth', authRouter);
 app.use('/api/users', requireAuth, requireAdmin, usersRouter);
 app.use('/api/stores', requireAuth, storesRouter);
+app.use('/api/brands', requireAuth, brandsRouter);
 app.use('/api', requireAuth, dataRouter);
 app.use('/api', requireAuth, itemsRouter);
 

@@ -43,6 +43,14 @@ export const updateStore = (id, name) =>
 export const deleteStore = (id, force = false) =>
   request(`/api/stores/${id}${force ? '?force=1' : ''}`, { method: 'DELETE' });
 
+export const listBrands = () => request('/api/brands');
+export const createBrand = (name) =>
+  request('/api/brands', { method: 'POST', body: JSON.stringify({ name }) });
+export const updateBrand = (id, name) =>
+  request(`/api/brands/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+export const deleteBrand = (id, force = false) =>
+  request(`/api/brands/${id}${force ? '?force=1' : ''}`, { method: 'DELETE' });
+
 export const exportBackup = () => request('/api/backup');
 export const restoreBackup = (data) =>
   request('/api/restore', { method: 'POST', body: JSON.stringify({ data }) });

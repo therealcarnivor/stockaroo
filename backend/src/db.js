@@ -64,6 +64,9 @@ if (!itemColumns.includes('min_stock')) {
 if (!itemColumns.includes('frozen')) {
   db.exec('ALTER TABLE items ADD COLUMN frozen INTEGER NOT NULL DEFAULT 0');
 }
+if (!itemColumns.includes('brand')) {
+  db.exec(`ALTER TABLE items ADD COLUMN brand TEXT NOT NULL DEFAULT ''`);
+}
 
 const scanColumns = db.prepare('PRAGMA table_info(scans)').all().map((c) => c.name);
 if (!scanColumns.includes('created')) {
@@ -98,6 +101,20 @@ db.exec(`
 db.exec(`
   INSERT OR IGNORE INTO stores (name)
   SELECT DISTINCT store FROM items WHERE store <> ''
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS brands (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+// Adopt brand names already typed against items so nothing is orphaned.
+db.exec(`
+  INSERT OR IGNORE INTO brands (name)
+  SELECT DISTINCT brand FROM items WHERE brand <> ''
 `);
 
 // scrypt with a per-password salt; stored as salt:hash so it stays self-describing.
