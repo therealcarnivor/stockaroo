@@ -5,6 +5,8 @@ import BarcodeIcon from '../components/BarcodeIcon.jsx';
 import FrozenIcon from '../components/FrozenIcon.jsx';
 import StoreSelect from '../components/StoreSelect.jsx';
 
+const TINT_MS = 1400;
+
 export default function ScanPage({ online }) {
   const [barcode, setBarcode] = useState('');
   const [direction, setDirection] = useState(1); // 1 = stocking in, -1 = using up
@@ -15,8 +17,10 @@ export default function ScanPage({ online }) {
   const [stores, setStores] = useState([]);
   const [queued, setQueued] = useState(queueSize());
   const [revealed, setRevealed] = useState(() => new Set());
+  const [tint, setTint] = useState(null); // 'ok' = known barcode, 'new' = just created
   const barcodeRef = useRef(null);
   const nameRef = useRef(null);
+  const tintTimer = useRef(null);
   const VISIBLE_SCANS = 20;
 
   const refresh = useCallback(() => listScans().then(setRecent).catch(() => {}), []);
@@ -44,6 +48,14 @@ export default function ScanPage({ online }) {
     else nameRef.current?.focus();
   }, [pending]);
 
+  useEffect(() => () => window.clearTimeout(tintTimer.current), []);
+
+  const flashTint = (kind) => {
+    window.clearTimeout(tintTimer.current);
+    setTint(kind);
+    tintTimer.current = window.setTimeout(() => setTint(null), TINT_MS);
+  };
+
   const submitScan = async (code, newItem) => {
     const payload = { barcode: code, ...newItem, delta: direction };
     setBarcode('');
@@ -53,6 +65,8 @@ export default function ScanPage({ online }) {
       setStatus({ kind: 'ok', text: `${item.name} — qty ${item.quantity}` });
       setPending(null);
       setDetails({ name: '', store: '', size: '', frozen: false });
+      // newItem is only passed once the name form completes a brand-new barcode.
+      flashTint(newItem ? 'new' : 'ok');
       refresh();
     } catch (err) {
       if (err.offline) {
@@ -115,7 +129,7 @@ export default function ScanPage({ online }) {
       </div>
 
       {!pending ? (
-        <form className="card" onSubmit={onBarcodeSubmit}>
+        <form className={`card${tint ? ` tint-${tint}` : ''}`} onSubmit={onBarcodeSubmit}>
           <label htmlFor="barcode">Barcode ({direction === 1 ? 'adding' : 'removing'})</label>
           <input
             id="barcode"
@@ -197,7 +211,7 @@ export default function ScanPage({ online }) {
       <div className="scroll-panel">
         <ul className="list">
           {recent.slice(0, VISIBLE_SCANS).map((s) => (
-            <li key={s.id}>
+            <li key={s.id} className={s.created ? 'tint-new' : 'tint-ok'}>
               <span className="icon-cell">
                 <button
                   className="icon-toggle"

@@ -9,5 +9,9 @@ export const ADMIN_ERRORS = {
   invalid_store: 'Enter a store name.',
   unsupported_version: 'That file is not a supported Stockaroo backup.',
   no_admin_in_backup: 'That backup contains no admin user.',
-  invalid_payload: 'That file is not a valid backup.'
+  invalid_payload: 'That file is not a valid backup.',
+  invalid_barcode: 'Enter a valid barcode.',
+  barcode_in_use: 'That barcode is already used by another item.',
+  last_barcode: 'An item needs at least one barcode.',
+  invalid_merge: 'Choose a different item to merge into.'
 };

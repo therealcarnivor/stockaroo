@@ -49,6 +49,8 @@ export const restoreBackup = (data) =>
 
 export const getStats = () => request('/api/stats');
 
+export const zeroStock = () => request('/api/zero-stock', { method: 'POST' });
+
 export const listItems = (q = '', neededOnly = false, frozen = null) => {
   const params = new URLSearchParams();
   if (q) params.set('q', q);
@@ -72,3 +74,12 @@ export const updateItem = (id, patch) =>
   request(`/api/items/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
 
 export const deleteItem = (id) => request(`/api/items/${id}`, { method: 'DELETE' });
+
+export const addBarcode = (id, barcode) =>
+  request(`/api/items/${id}/barcodes`, { method: 'POST', body: JSON.stringify({ barcode }) });
+
+export const removeBarcode = (id, barcode) =>
+  request(`/api/items/${id}/barcodes/${encodeURIComponent(barcode)}`, { method: 'DELETE' });
+
+export const mergeItem = (id, intoId) =>
+  request(`/api/items/${id}/merge`, { method: 'POST', body: JSON.stringify({ intoId }) });

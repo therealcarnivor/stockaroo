@@ -103,12 +103,25 @@ export default function ItemsPage({ online }) {
       </div>
 
       <div className="row">
-        <input
-          className="input grow"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search name, store, size or barcode"
-        />
+        <span className="search-box grow">
+          <input
+            className="input"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search name, store, size or barcode"
+          />
+          {q && (
+            <button
+              type="button"
+              className="search-clear"
+              onClick={() => setQ('')}
+              aria-label="Clear search"
+              title="Clear search"
+            >
+              ×
+            </button>
+          )}
+        </span>
         <button
           className={`btn ${neededOnly ? 'primary' : ''}`}
           onClick={() => setNeededOnly((v) => !v)}

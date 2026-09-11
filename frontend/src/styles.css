@@ -9,6 +9,8 @@
   --zero-stock: #fdf3c4;
   --needed: #fcdcdc;
   --frozen: #1d7fd6;
+  --scan-ok: #d7f5df;
+  --scan-new: #fcdcdc;
   --radius: 12px;
 }
 
@@ -23,6 +25,8 @@
   --zero-stock: #4a4321;
   --needed: #5a2626;
   --frozen: #58b6ff;
+  --scan-ok: #1f3d28;
+  --scan-new: #5a2626;
 }
 
 * { box-sizing: border-box; }
@@ -106,9 +110,33 @@ h2 { font-size: 1.05rem; margin: 0.5rem 0 0; }
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
+.search-box { position: relative; display: inline-flex; }
+.search-box .input { padding-right: 2.2rem; }
+
+.search-clear {
+  position: absolute;
+  right: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  line-height: 1;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.search-clear:hover { color: var(--danger); }
 
 .input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .input.big { font-size: 1.25rem; letter-spacing: 0.05em; }
+.input.tint-ok, .list li.tint-ok, .card.tint-ok { background: var(--scan-ok); transition: background-color 0.2s ease; }
+.input.tint-new, .list li.tint-new, .card.tint-new { background: var(--scan-new); transition: background-color 0.2s ease; }
 
 .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 .row.spread { justify-content: space-between; }
@@ -265,6 +293,26 @@ h2 { font-size: 1.05rem; margin: 0.5rem 0 0; }
 
 .history-row { grid-template-columns: auto 1fr auto; }
 .store-row { grid-template-columns: 1fr auto; }
+.barcode-row { grid-template-columns: 1fr auto; padding: 0.4rem 0.6rem; }
+.barcode-list { gap: 0.35rem; margin-bottom: 0.5rem; }
+
+.barcode-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  line-height: 1;
+  font-size: 1rem;
+  color: var(--danger);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.barcode-remove:disabled { opacity: 0.4; cursor: default; }
 
 .admin-links {
   display: grid;

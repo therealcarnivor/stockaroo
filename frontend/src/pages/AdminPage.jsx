@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { exportBackup, getStats, restoreBackup } from '../api.js';
+import { exportBackup, getStats, restoreBackup, zeroStock } from '../api.js';
 import { ADMIN_ERRORS } from '../adminErrors.js';
 
 export default function AdminPage() {
@@ -44,6 +44,17 @@ export default function AdminPage() {
         kind: 'error',
         text: ADMIN_ERRORS[err.message] || err.message || 'Could not read that file.'
       });
+    }
+  };
+
+  const zeroAll = async () => {
+    if (!confirm('Set every item\'s stock to 0? Item details and history are kept.')) return;
+    try {
+      const result = await zeroStock();
+      setStatus({ kind: 'ok', text: `Zeroed stock on ${result.items} items.` });
+      getStats().then(setStats).catch(() => {});
+    } catch (err) {
+      setStatus({ kind: 'error', text: ADMIN_ERRORS[err.message] || err.message });
     }
   };
 
@@ -113,6 +124,16 @@ export default function AdminPage() {
           />
         </div>
         {status && <p className={`status ${status.kind}`}>{status.text}</p>}
+      </div>
+
+      <h2>Zero stock</h2>
+      <div className="card">
+        <p className="muted">
+          Sets every item's quantity to 0. Item names, stores, sizes, barcodes and history are kept.
+        </p>
+        <div className="row">
+          <button className="btn danger" onClick={zeroAll}>Zero all products</button>
+        </div>
       </div>
     </section>
   );

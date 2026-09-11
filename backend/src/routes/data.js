@@ -5,7 +5,7 @@ const { requireAdmin } = require('../session');
 const router = express.Router();
 
 const BARCODE_RE = /^[A-Za-z0-9._-]{1,64}$/;
-const BACKUP_VERSION = 2;
+const BACKUP_VERSION = 3;
 
 const NEEDED_SQL = '(min_stock > 0 AND quantity <= min_stock)';
 
@@ -32,9 +32,14 @@ router.get('/stats', (req, res) => {
   });
 });
 
+// Bulk reset: keeps every item's identity/details but drops all quantities to 0.
+router.post('/zero-stock', requireAdmin, (req, res) => {
+  const result = db.prepare(`UPDATE items SET quantity = 0, updated_at = datetime('now')`).run();
+  res.json({ items: result.changes });
+});
+
 // Full-database snapshot. Includes password hashes, so treat the file as a secret.
-router.get('/backup', requireAdmin, (req, res) => {
-  res.setHeader('Content-Disposition', 'attachment; filename="stockaroo-backup.json"');
+router.get('/backup', requireAdmin, (req, res) => {  res.setHeader('Content-Disposition', 'attachment; filename="stockaroo-backup.json"');
   res.json({
     version: BACKUP_VERSION,
     exported_at: new Date().toISOString(),
@@ -44,6 +49,9 @@ router.get('/backup', requireAdmin, (req, res) => {
         `SELECT id, barcode, name, store, size, quantity, min_stock, frozen, created_at, updated_at
          FROM items ORDER BY id`
       )
+      .all(),
+    item_barcodes: db
+      .prepare('SELECT id, item_id, barcode, created_at FROM item_barcodes ORDER BY id')
       .all(),
     scans: db.prepare('SELECT id, item_id, delta, scanned_at FROM scans ORDER BY id').all(),
     users: db
@@ -58,12 +66,13 @@ router.get('/backup', requireAdmin, (req, res) => {
 router.post('/restore', requireAdmin, (req, res) => {
   const data = req.body?.data;
   if (!data || typeof data !== 'object') return res.status(400).json({ error: 'invalid_payload' });
-  if (Number(data.version) !== BACKUP_VERSION) {
+  if (![2, 3].includes(Number(data.version))) {
     return res.status(400).json({ error: 'unsupported_version' });
   }
 
   const stores = Array.isArray(data.stores) ? data.stores : [];
   const items = Array.isArray(data.items) ? data.items : [];
+  const itemBarcodes = Array.isArray(data.item_barcodes) ? data.item_barcodes : [];
   const scans = Array.isArray(data.scans) ? data.scans : [];
   const users = Array.isArray(data.users) ? data.users : [];
 
@@ -83,6 +92,7 @@ router.post('/restore', requireAdmin, (req, res) => {
   const result = db.transaction(() => {
     db.prepare('DELETE FROM sessions').run();
     db.prepare('DELETE FROM scans').run();
+    db.prepare('DELETE FROM item_barcodes').run();
     db.prepare('DELETE FROM items').run();
     db.prepare('DELETE FROM stores').run();
     db.prepare('DELETE FROM users').run();
@@ -113,6 +123,19 @@ router.post('/restore', requireAdmin, (req, res) => {
     }
 
     const itemIds = new Set(db.prepare('SELECT id FROM items').all().map((r) => r.id));
+
+    const addItemBarcode = db.prepare(
+      `INSERT INTO item_barcodes (id, item_id, barcode, created_at)
+       VALUES (?, ?, ?, COALESCE(?, datetime('now')))`
+    );
+    // v2 backups predate aliasing, so fall back to each item's own barcode.
+    const barcodeRows =
+      Number(data.version) >= 3 ? itemBarcodes : items.map((i) => ({ item_id: i.id, barcode: i.barcode }));
+    for (const b of barcodeRows) {
+      if (!itemIds.has(b.item_id)) continue;
+      addItemBarcode.run(b.id ?? null, b.item_id, String(b.barcode), b.created_at ?? null);
+    }
+
     const addScan = db.prepare(
       `INSERT INTO scans (id, item_id, delta, scanned_at)
        VALUES (?, ?, ?, COALESCE(?, datetime('now')))`

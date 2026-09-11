@@ -118,3 +118,9 @@ replaces all existing data and signs everyone out.
 ## Licence
 
 See [LICENSE](LICENSE).
+
+## Screenshots
+
+| Scan | Items | Admin |
+| --- | --- | --- |
+| ![Scan page](screenshots/scan.png) | ![Items page](screenshots/items.png) | ![Admin page](screenshots/admin.png) |

@@ -1,7 +1,36 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { deleteItem, itemHistory, listStores, scan, updateItem } from '../api.js';
+import {
+  addBarcode,
+  deleteItem,
+  itemHistory,
+  listItems,
+  listStores,
+  mergeItem,
+  removeBarcode,
+  scan,
+  updateItem
+} from '../api.js';
+import { ADMIN_ERRORS } from '../adminErrors.js';
 import StoreSelect from '../components/StoreSelect.jsx';
+
+// Ranks candidates by shared name words so the likely duplicate is preselected.
+const nameTokens = (name) => new Set(name.toLowerCase().trim().split(/\s+/).filter(Boolean));
+const closestItem = (name, candidates) => {
+  const target = nameTokens(name);
+  let best = null;
+  let bestScore = -1;
+  for (const candidate of candidates) {
+    const tokens = nameTokens(candidate.name);
+    const shared = [...target].filter((t) => tokens.has(t)).length;
+    const score = shared / Math.max(target.size, tokens.size, 1);
+    if (score > bestScore) {
+      bestScore = score;
+      best = candidate;
+    }
+  }
+  return best;
+};
 
 export default function ItemPage({ isAdmin }) {
   const { id } = useParams();
@@ -11,6 +40,11 @@ export default function ItemPage({ isAdmin }) {
   const [draft, setDraft] = useState({ name: '', store: '', size: '' });
   const [stores, setStores] = useState([]);
   const [error, setError] = useState(null);
+  const [status, setStatus] = useState(null);
+  const [newBarcode, setNewBarcode] = useState('');
+  const [merging, setMerging] = useState(false);
+  const [mergeCandidates, setMergeCandidates] = useState([]);
+  const [mergeTarget, setMergeTarget] = useState('');
 
   const refresh = useCallback(
     () => itemHistory(id).then(setData).catch((err) => setError(err.message)),
@@ -47,14 +81,91 @@ export default function ItemPage({ isAdmin }) {
     navigate('/items');
   };
 
+  const openMerge = async () => {
+    setMerging((v) => !v);
+    if (merging || mergeCandidates.length > 0) return;
+    try {
+      const others = (await listItems('')).filter((i) => i.id !== item.id);
+      setMergeCandidates(others);
+      setMergeTarget(String(closestItem(item.name, others)?.id ?? ''));
+    } catch {
+      setStatus({ kind: 'error', text: 'Could not load other items.' });
+    }
+  };
+
+  const doMerge = async () => {
+    const target = mergeCandidates.find((i) => String(i.id) === mergeTarget);
+    if (!target) return;
+    if (!confirm(`Merge "${item.name}" into "${target.name}"? This item will be deleted.`)) return;
+    try {
+      await mergeItem(item.id, target.id);
+      navigate(`/items/${target.id}`);
+    } catch (err) {
+      setStatus({ kind: 'error', text: ADMIN_ERRORS[err.body?.error] || err.message });
+    }
+  };
+
+  const handleAddBarcode = async () => {
+    const barcode = newBarcode.trim();
+    if (!barcode) return;
+    try {
+      await addBarcode(item.id, barcode);
+      setNewBarcode('');
+      refresh();
+    } catch (err) {
+      setStatus({ kind: 'error', text: ADMIN_ERRORS[err.body?.error] || err.message });
+    }
+  };
+
+  const handleRemoveBarcode = async (barcode) => {
+    if (!confirm(`Remove barcode ${barcode} from this item?`)) return;
+    try {
+      await removeBarcode(item.id, barcode);
+      refresh();
+    } catch (err) {
+      setStatus({ kind: 'error', text: ADMIN_ERRORS[err.body?.error] || err.message });
+    }
+  };
+
   return (
     <section className="stack">
       <div className="row spread">
         <button className="btn small" onClick={() => navigate(-1)}>← Back</button>
-        {isAdmin && (
-          <button className="btn small danger" onClick={remove}>Delete item</button>
-        )}
+        <div className="row">
+          <button className="btn small" onClick={openMerge}>Merge</button>
+          {isAdmin && (
+            <button className="btn small danger" onClick={remove}>Delete item</button>
+          )}
+        </div>
       </div>
+
+      {merging && (
+        <div className="card">
+          <div className="row">
+            <select
+              className="input grow"
+              value={mergeTarget}
+              onChange={(e) => setMergeTarget(e.target.value)}
+              aria-label="Merge into"
+            >
+              <option value="">Select an item…</option>
+              {mergeCandidates.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name}
+                  {[i.store, i.size].filter(Boolean).length
+                    ? ` — ${[i.store, i.size].filter(Boolean).join(' · ')}`
+                    : ''}
+                </option>
+              ))}
+            </select>
+            <button className="btn small primary" onClick={doMerge} disabled={!mergeTarget}>
+              Merge into this
+            </button>
+          </div>
+        </div>
+      )}
+
+      {status && <p className={`status ${status.kind}`}>{status.text}</p>}
 
       <div className="card">
         {editing ? (
@@ -142,7 +253,35 @@ export default function ItemPage({ isAdmin }) {
           <dt>Size</dt>
           <dd>{item.size || <span className="muted">Not set</span>}</dd>
           <dt>Barcode</dt>
-          <dd className="mono">{item.barcode}</dd>
+          <dd>
+            <ul className="list barcode-list">
+              {(item.barcodes || [item.barcode]).map((code) => (
+                <li key={code} className="barcode-row">
+                  <span className="mono">{code}</span>
+                  <button
+                    className="barcode-remove"
+                    onClick={() => handleRemoveBarcode(code)}
+                    disabled={(item.barcodes || []).length <= 1}
+                    aria-label={`Remove barcode ${code}`}
+                    title="Remove barcode"
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="row">
+              <input
+                className="input grow"
+                value={newBarcode}
+                onChange={(e) => setNewBarcode(e.target.value)}
+                placeholder="Add another barcode"
+              />
+              <button className="btn small" onClick={handleAddBarcode} disabled={!newBarcode.trim()}>
+                Add
+              </button>
+            </div>
+          </dd>
           <dt>In stock</dt>
           <dd>
             <span className="stepper">

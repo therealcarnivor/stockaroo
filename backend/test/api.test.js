@@ -101,7 +101,7 @@ test('a full backup round-trips the whole database', async () => {
   await api('POST', '/api/scans', { barcode: '222', delta: 3 });
 
   const backup = await (await api('GET', '/api/backup')).json();
-  assert.equal(backup.version, 2);
+  assert.equal(backup.version, 3);
   assert.ok(backup.items.length >= 2);
   assert.ok(backup.users.some((u) => u.username === 'admin' && u.password_hash));
   assert.ok(backup.scans.length > 0);

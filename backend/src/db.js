@@ -65,6 +65,27 @@ if (!itemColumns.includes('frozen')) {
   db.exec('ALTER TABLE items ADD COLUMN frozen INTEGER NOT NULL DEFAULT 0');
 }
 
+const scanColumns = db.prepare('PRAGMA table_info(scans)').all().map((c) => c.name);
+if (!scanColumns.includes('created')) {
+  db.exec('ALTER TABLE scans ADD COLUMN created INTEGER NOT NULL DEFAULT 0');
+}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS item_barcodes (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id    INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    barcode    TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_item_barcodes_item ON item_barcodes(item_id);
+`);
+
+// Items predating barcode aliasing only have their one barcode on the row itself.
+db.exec(`
+  INSERT OR IGNORE INTO item_barcodes (item_id, barcode)
+  SELECT id, barcode FROM items
+`);
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS stores (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
