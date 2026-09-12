@@ -5,7 +5,7 @@ const { requireAdmin } = require('../session');
 const router = express.Router();
 
 const BARCODE_RE = /^[A-Za-z0-9._-]{1,64}$/;
-const BACKUP_VERSION = 4;
+const BACKUP_VERSION = 6;
 
 const NEEDED_SQL = '(min_stock > 0 AND quantity <= min_stock)';
 
@@ -22,13 +22,15 @@ router.get('/stats', (req, res) => {
     .get();
   const stores = db.prepare('SELECT COUNT(*) AS total FROM stores').get();
   const brands = db.prepare('SELECT COUNT(*) AS total FROM brands').get();
+  const categories = db.prepare('SELECT COUNT(*) AS total FROM categories').get();
   res.json({
     items: items.total,
     frozenItems: items.frozen,
     neededItems: items.needed,
     outOfStockItems: items.outOfStock,
     stores: stores.total,
-    brands: brands.total
+    brands: brands.total,
+    categories: categories.total
   });
 });
 
@@ -46,16 +48,17 @@ router.get('/backup', requireAdmin, (req, res) => {
     exported_at: new Date().toISOString(),
     stores: db.prepare('SELECT id, name, created_at FROM stores ORDER BY id').all(),
     brands: db.prepare('SELECT id, name, created_at FROM brands ORDER BY id').all(),
+    categories: db.prepare('SELECT id, name, created_at FROM categories ORDER BY id').all(),
     items: db
       .prepare(
-        `SELECT id, barcode, name, store, brand, size, quantity, min_stock, frozen, created_at, updated_at
+        `SELECT id, barcode, name, store, brand, category, size, quantity, min_stock, frozen, created_at, updated_at
          FROM items ORDER BY id`
       )
       .all(),
     item_barcodes: db
       .prepare('SELECT id, item_id, barcode, created_at FROM item_barcodes ORDER BY id')
       .all(),
-    scans: db.prepare('SELECT id, item_id, delta, scanned_at, created FROM scans ORDER BY id').all(),
+    scans: db.prepare('SELECT id, item_id, delta, scanned_at, created, source FROM scans ORDER BY id').all(),
     users: db
       .prepare(
         `SELECT id, username, password_hash, is_admin, must_change_password, avatar, created_at
@@ -68,12 +71,13 @@ router.get('/backup', requireAdmin, (req, res) => {
 router.post('/restore', requireAdmin, (req, res) => {
   const data = req.body?.data;
   if (!data || typeof data !== 'object') return res.status(400).json({ error: 'invalid_payload' });
-  if (![2, 3, 4].includes(Number(data.version))) {
+  if (![2, 3, 4, 5, 6].includes(Number(data.version))) {
     return res.status(400).json({ error: 'unsupported_version' });
   }
 
   const stores = Array.isArray(data.stores) ? data.stores : [];
   const brands = Array.isArray(data.brands) ? data.brands : [];
+  const categories = Array.isArray(data.categories) ? data.categories : [];
   const items = Array.isArray(data.items) ? data.items : [];
   const itemBarcodes = Array.isArray(data.item_barcodes) ? data.item_barcodes : [];
   const scans = Array.isArray(data.scans) ? data.scans : [];
@@ -99,6 +103,7 @@ router.post('/restore', requireAdmin, (req, res) => {
     db.prepare('DELETE FROM items').run();
     db.prepare('DELETE FROM stores').run();
     db.prepare('DELETE FROM brands').run();
+    db.prepare('DELETE FROM categories').run();
     db.prepare('DELETE FROM users').run();
 
     const addStore = db.prepare(
@@ -111,9 +116,14 @@ router.post('/restore', requireAdmin, (req, res) => {
     );
     for (const b of brands) addBrand.run(b.id ?? null, String(b.name).slice(0, 60), b.created_at ?? null);
 
+    const addCategory = db.prepare(
+      `INSERT INTO categories (id, name, created_at) VALUES (?, ?, COALESCE(?, datetime('now')))`
+    );
+    for (const c of categories) addCategory.run(c.id ?? null, String(c.name).slice(0, 60), c.created_at ?? null);
+
     const addItem = db.prepare(
-      `INSERT INTO items (id, barcode, name, store, brand, size, quantity, min_stock, frozen, created_at, updated_at)
-       VALUES (@id, @barcode, @name, @store, @brand, @size, @quantity, @min_stock, @frozen,
+      `INSERT INTO items (id, barcode, name, store, brand, category, size, quantity, min_stock, frozen, created_at, updated_at)
+       VALUES (@id, @barcode, @name, @store, @brand, @category, @size, @quantity, @min_stock, @frozen,
                COALESCE(@created_at, datetime('now')), COALESCE(@updated_at, datetime('now')))`
     );
     for (const i of items) {
@@ -123,6 +133,7 @@ router.post('/restore', requireAdmin, (req, res) => {
         name: String(i.name ?? '').slice(0, 200) || String(i.barcode),
         store: String(i.store ?? '').slice(0, 60),
         brand: String(i.brand ?? '').slice(0, 60),
+        category: String(i.category ?? '').slice(0, 60),
         size: String(i.size ?? '').slice(0, 60),
         quantity: Number.isInteger(i.quantity) && i.quantity >= 0 ? i.quantity : 0,
         min_stock: Number.isInteger(i.min_stock) && i.min_stock >= 0 ? i.min_stock : 0,
@@ -147,8 +158,8 @@ router.post('/restore', requireAdmin, (req, res) => {
     }
 
     const addScan = db.prepare(
-      `INSERT INTO scans (id, item_id, delta, scanned_at, created)
-       VALUES (?, ?, ?, COALESCE(?, datetime('now')), ?)`
+      `INSERT INTO scans (id, item_id, delta, scanned_at, created, source)
+       VALUES (?, ?, ?, COALESCE(?, datetime('now')), ?, ?)`
     );
     let restoredScans = 0;
     for (const s of scans) {
@@ -158,7 +169,8 @@ router.post('/restore', requireAdmin, (req, res) => {
         s.item_id,
         Number.isInteger(s.delta) ? s.delta : 1,
         s.scanned_at ?? null,
-        s.created ? 1 : 0
+        s.created ? 1 : 0,
+        ['hand', 'mqtt', 'manual'].includes(s.source) ? s.source : 'hand'
       );
       restoredScans += 1;
     }
@@ -183,6 +195,7 @@ router.post('/restore', requireAdmin, (req, res) => {
     return {
       stores: stores.length,
       brands: brands.length,
+      categories: categories.length,
       items: items.length,
       scans: restoredScans,
       users: users.length

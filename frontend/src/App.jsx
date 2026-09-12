@@ -8,6 +8,7 @@ import AdminPage from './pages/AdminPage.jsx';
 import AdminUsersPage from './pages/AdminUsersPage.jsx';
 import AdminStoresPage from './pages/AdminStoresPage.jsx';
 import AdminBrandsPage from './pages/AdminBrandsPage.jsx';
+import AdminCategoriesPage from './pages/AdminCategoriesPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import useTheme from './useTheme.js';
 import { logout, me } from './api.js';
@@ -92,6 +93,10 @@ export default function App() {
             <Route
               path="/admin/brands"
               element={user.is_admin ? <AdminBrandsPage /> : <p>Not allowed.</p>}
+            />
+            <Route
+              path="/admin/categories"
+              element={user.is_admin ? <AdminCategoriesPage /> : <p>Not allowed.</p>}
             />
             <Route path="*" element={<p>Not found.</p>} />
           </Routes>

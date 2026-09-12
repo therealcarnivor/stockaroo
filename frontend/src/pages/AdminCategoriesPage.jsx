@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { createStore, deleteStore, listStores, updateStore } from '../api.js';
+import { createCategory, deleteCategory, listCategories, updateCategory } from '../api.js';
 import { ADMIN_ERRORS } from '../adminErrors.js';
 
-export default function AdminStoresPage() {
-  const [stores, setStores] = useState([]);
-  const [storeName, setStoreName] = useState('');
+export default function AdminCategoriesPage() {
+  const [categories, setCategories] = useState([]);
+  const [categoryName, setCategoryName] = useState('');
   const [editing, setEditing] = useState(null);
   const [draft, setDraft] = useState('');
   const [status, setStatus] = useState(null);
 
-  const refresh = useCallback(() => listStores().then(setStores).catch(() => {}), []);
+  const refresh = useCallback(() => listCategories().then(setCategories).catch(() => {}), []);
   useEffect(() => { refresh(); }, [refresh]);
 
   const run = async (fn, okText) => {
@@ -27,26 +27,26 @@ export default function AdminStoresPage() {
 
   const add = async (e) => {
     e.preventDefault();
-    const ok = await run(() => createStore(storeName.trim()), 'Store added.');
-    if (ok) setStoreName('');
+    const ok = await run(() => createCategory(categoryName.trim()), 'Category added.');
+    if (ok) setCategoryName('');
   };
 
-  const save = async (store) => {
-    const ok = await run(() => updateStore(store.id, draft.trim()), 'Store renamed.');
+  const save = async (category) => {
+    const ok = await run(() => updateCategory(category.id, draft.trim()), 'Category renamed.');
     if (ok) setEditing(null);
   };
 
-  const remove = async (store) => {
+  const remove = async (category) => {
     try {
-      await deleteStore(store.id);
-      setStatus({ kind: 'ok', text: 'Store deleted.' });
+      await deleteCategory(category.id);
+      setStatus({ kind: 'ok', text: 'Category deleted.' });
       refresh();
     } catch (err) {
-      if (err.body?.error === 'store_in_use') {
-        if (!confirm(`${err.body.items} item(s) use "${store.name}". Delete anyway and clear them?`)) {
+      if (err.body?.error === 'category_in_use') {
+        if (!confirm(`${err.body.items} item(s) use "${category.name}". Delete anyway and clear them?`)) {
           return;
         }
-        await run(() => deleteStore(store.id, true), 'Store deleted.');
+        await run(() => deleteCategory(category.id, true), 'Category deleted.');
       } else {
         setStatus({ kind: 'error', text: ADMIN_ERRORS[err.message] || err.message });
       }
@@ -56,7 +56,7 @@ export default function AdminStoresPage() {
   return (
     <section className="stack">
       <div className="row spread">
-        <h1>Stores</h1>
+        <h1>Categories</h1>
         <Link className="btn small" to="/admin">← Admin</Link>
       </div>
 
@@ -64,20 +64,20 @@ export default function AdminStoresPage() {
         <div className="row">
           <input
             className="input grow"
-            placeholder="Store name, e.g. Tesco"
-            value={storeName}
-            onChange={(e) => setStoreName(e.target.value)}
+            placeholder="Category name, e.g. Pantry"
+            value={categoryName}
+            onChange={(e) => setCategoryName(e.target.value)}
           />
-          <button className="btn primary" type="submit" disabled={!storeName.trim()}>Add store</button>
+          <button className="btn primary" type="submit" disabled={!categoryName.trim()}>Add category</button>
         </div>
       </form>
 
       {status && <p className={`status ${status.kind}`}>{status.text}</p>}
 
       <ul className="list">
-        {stores.map((store) => (
-          <li key={store.id} className="store-row">
-            {editing === store.id ? (
+        {categories.map((category) => (
+          <li key={category.id} className="store-row">
+            {editing === category.id ? (
               <>
                 <input
                   className="input"
@@ -86,28 +86,28 @@ export default function AdminStoresPage() {
                   autoFocus
                 />
                 <span className="row">
-                  <button className="btn small primary" onClick={() => save(store)}>Save</button>
+                  <button className="btn small primary" onClick={() => save(category)}>Save</button>
                   <button className="btn small" onClick={() => setEditing(null)}>Cancel</button>
                 </span>
               </>
             ) : (
               <>
-                <span>{store.name}</span>
+                <span>{category.name}</span>
                 <span className="row">
-                  <span className="muted">{store.itemCount} item{store.itemCount === 1 ? '' : 's'}</span>
+                  <span className="muted">{category.itemCount} item{category.itemCount === 1 ? '' : 's'}</span>
                   <button
                     className="btn small"
-                    onClick={() => { setEditing(store.id); setDraft(store.name); }}
+                    onClick={() => { setEditing(category.id); setDraft(category.name); }}
                   >
                     Rename
                   </button>
-                  <button className="btn small danger" onClick={() => remove(store)}>Delete</button>
+                  <button className="btn small danger" onClick={() => remove(category)}>Delete</button>
                 </span>
               </>
             )}
           </li>
         ))}
-        {stores.length === 0 && <li className="muted">No stores yet.</li>}
+        {categories.length === 0 && <li className="muted">No categories yet.</li>}
       </ul>
     </section>
   );

@@ -7,6 +7,8 @@ const dataRouter = require('./routes/data');
 const usersRouter = require('./routes/users');
 const storesRouter = require('./routes/stores');
 const brandsRouter = require('./routes/brands');
+const categoriesRouter = require('./routes/categories');
+const settingsRouter = require('./routes/settings');
 const { router: authRouter } = require('./routes/auth');
 const { requireAuth, requireAdmin } = require('./session');
 
@@ -38,8 +40,10 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth', authRouter);
 app.use('/api/users', requireAuth, requireAdmin, usersRouter);
+app.use('/api/settings', requireAuth, settingsRouter);
 app.use('/api/stores', requireAuth, storesRouter);
 app.use('/api/brands', requireAuth, brandsRouter);
+app.use('/api/categories', requireAuth, categoriesRouter);
 app.use('/api', requireAuth, dataRouter);
 app.use('/api', requireAuth, itemsRouter);
 

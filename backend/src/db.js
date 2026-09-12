@@ -46,6 +46,12 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+  CREATE TABLE IF NOT EXISTS settings (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 if (!db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'avatar')) {
@@ -67,10 +73,16 @@ if (!itemColumns.includes('frozen')) {
 if (!itemColumns.includes('brand')) {
   db.exec(`ALTER TABLE items ADD COLUMN brand TEXT NOT NULL DEFAULT ''`);
 }
+if (!itemColumns.includes('category')) {
+  db.exec(`ALTER TABLE items ADD COLUMN category TEXT NOT NULL DEFAULT ''`);
+}
 
 const scanColumns = db.prepare('PRAGMA table_info(scans)').all().map((c) => c.name);
 if (!scanColumns.includes('created')) {
   db.exec('ALTER TABLE scans ADD COLUMN created INTEGER NOT NULL DEFAULT 0');
+}
+if (!scanColumns.includes('source')) {
+  db.exec(`ALTER TABLE scans ADD COLUMN source TEXT NOT NULL DEFAULT 'hand'`);
 }
 
 db.exec(`
@@ -115,6 +127,19 @@ db.exec(`
 db.exec(`
   INSERT OR IGNORE INTO brands (name)
   SELECT DISTINCT brand FROM items WHERE brand <> ''
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS categories (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+db.exec(`
+  INSERT OR IGNORE INTO categories (name)
+  SELECT DISTINCT category FROM items WHERE category <> ''
 `);
 
 // scrypt with a per-password salt; stored as salt:hash so it stays self-describing.

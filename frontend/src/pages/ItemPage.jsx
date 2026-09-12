@@ -4,6 +4,7 @@ import {
   addBarcode,
   deleteItem,
   itemHistory,
+  listCategories,
   listBrands,
   listItems,
   listStores,
@@ -14,6 +15,7 @@ import {
 } from '../api.js';
 import { ADMIN_ERRORS } from '../adminErrors.js';
 import BrandSelect from '../components/BrandSelect.jsx';
+import CategorySelect from '../components/CategorySelect.jsx';
 import StoreSelect from '../components/StoreSelect.jsx';
 
 // Ranks candidates by shared name words so the likely duplicate is preselected.
@@ -34,14 +36,21 @@ const closestItem = (name, candidates) => {
   return best;
 };
 
+const SOURCE_LABELS = {
+  hand: 'Hand scanned',
+  mqtt: 'MQTT scanned',
+  manual: 'Manually updated item'
+};
+
 export default function ItemPage({ isAdmin }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState({ name: '', store: '', brand: '', size: '' });
+  const [draft, setDraft] = useState({ name: '', store: '', brand: '', category: '', size: '' });
   const [stores, setStores] = useState([]);
   const [brands, setBrands] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [error, setError] = useState(null);
   const [status, setStatus] = useState(null);
   const [newBarcode, setNewBarcode] = useState('');
@@ -60,13 +69,15 @@ export default function ItemPage({ isAdmin }) {
 
   useEffect(() => { listBrands().then(setBrands).catch(() => {}); }, []);
 
+  useEffect(() => { listCategories().then(setCategories).catch(() => {}); }, []);
+
   if (error) return <p className="status error">{error}</p>;
   if (!data) return <p className="muted">Loading…</p>;
 
   const { item, scans, totals } = data;
 
   const adjust = async (delta) => {
-    await scan({ barcode: item.barcode, delta }).catch(() => {});
+    await scan({ barcode: item.barcode, delta, source: 'manual' }).catch(() => {});
     refresh();
   };
 
@@ -75,6 +86,7 @@ export default function ItemPage({ isAdmin }) {
       name: draft.name.trim(),
       store: draft.store.trim(),
       brand: draft.brand.trim(),
+      category: draft.category.trim(),
       size: draft.size.trim()
     });
     setEditing(false);
@@ -196,6 +208,12 @@ export default function ItemPage({ isAdmin }) {
                 value={draft.brand}
                 onChange={(brand) => setDraft({ ...draft, brand })}
               />
+              <CategorySelect
+                className="input grow"
+                categories={categories}
+                value={draft.category}
+                onChange={(category) => setDraft({ ...draft, category })}
+              />
               <input
                 className="input grow"
                 value={draft.size}
@@ -219,6 +237,7 @@ export default function ItemPage({ isAdmin }) {
                   name: item.name,
                   store: item.store || '',
                   brand: item.brand || '',
+                  category: item.category || '',
                   size: item.size || ''
                 });
               }}
@@ -269,6 +288,8 @@ export default function ItemPage({ isAdmin }) {
           <dd>{item.store || <span className="muted">Not set</span>}</dd>
           <dt>Brand</dt>
           <dd>{item.brand || <span className="muted">Not set</span>}</dd>
+          <dt>Category</dt>
+          <dd>{item.category || <span className="muted">Not set</span>}</dd>
           <dt>Size</dt>
           <dd>{item.size || <span className="muted">Not set</span>}</dd>
           <dt>Barcode</dt>
@@ -329,7 +350,7 @@ export default function ItemPage({ isAdmin }) {
             <span className={s.delta > 0 ? 'delta in' : 'delta out'}>
               {s.delta > 0 ? `+${s.delta}` : s.delta}
             </span>
-            <span>{s.delta > 0 ? 'Stocked in' : 'Used up'}</span>
+            <span>{s.delta > 0 ? 'Stocked in' : 'Used up'} · {SOURCE_LABELS[s.source] || 'Hand scanned'}</span>
             <span className="muted">{s.scanned_at}</span>
           </li>
         ))}

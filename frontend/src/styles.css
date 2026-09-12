@@ -11,6 +11,7 @@
   --frozen: #1d7fd6;
   --scan-ok: #d7f5df;
   --scan-new: #fcdcdc;
+  --scan-mqtt: #dbeafe;
   --radius: 12px;
 }
 
@@ -27,6 +28,7 @@
   --frozen: #58b6ff;
   --scan-ok: #1f3d28;
   --scan-new: #5a2626;
+  --scan-mqtt: #18365f;
 }
 
 * { box-sizing: border-box; }
@@ -137,6 +139,7 @@ h2 { font-size: 1.05rem; margin: 0.5rem 0 0; }
 .input.big { font-size: 1.25rem; letter-spacing: 0.05em; }
 .input.tint-ok, .list li.tint-ok, .card.tint-ok { background: var(--scan-ok); transition: background-color 0.2s ease; }
 .input.tint-new, .list li.tint-new, .card.tint-new { background: var(--scan-new); transition: background-color 0.2s ease; }
+.list li.tint-mqtt { background: var(--scan-mqtt); transition: background-color 0.2s ease; }
 
 .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 .row.spread { justify-content: space-between; }
@@ -275,6 +278,9 @@ h2 { font-size: 1.05rem; margin: 0.5rem 0 0; }
 
 .table tr.out-of-stock td { background: var(--zero-stock); }
 .table tr.needed td { background: var(--needed); }
+.table tr.tint-ok td { background: var(--scan-ok); }
+.table tr.tint-new td { background: var(--scan-new); }
+.table tr.tint-mqtt td { background: var(--scan-mqtt); }
 
 .table tr.row-link { cursor: pointer; }
 .table tbody tr.row-link:hover td { background: var(--bg); }
@@ -399,9 +405,12 @@ h2 { font-size: 1.05rem; margin: 0.5rem 0 0; }
   .table td:last-child { flex: 0 0 auto; }
 
   /* Card background lives on the row; child cells must stay transparent to avoid clipping it. */
-  .table tr.out-of-stock td, .table tr.needed td { background: none; }
+  .table tr.out-of-stock td, .table tr.needed td, .table tr.tint-ok td, .table tr.tint-new td, .table tr.tint-mqtt td { background: none; }
   .table tr.out-of-stock { background: var(--zero-stock); }
   .table tr.needed { background: var(--needed); }
+  .table tr.tint-ok { background: var(--scan-ok); }
+  .table tr.tint-new { background: var(--scan-new); }
+  .table tr.tint-mqtt { background: var(--scan-mqtt); }
   .table tbody tr.row-link.out-of-stock:hover { background: var(--zero-stock); }
   .table tbody tr.row-link.needed:hover { background: var(--needed); }
 

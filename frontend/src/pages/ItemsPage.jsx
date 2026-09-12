@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listItems, scan } from '../api.js';
+import { listCategories, listItems, scan } from '../api.js';
 import BarcodeIcon from '../components/BarcodeIcon.jsx';
 import FrozenIcon from '../components/FrozenIcon.jsx';
 
@@ -12,13 +12,17 @@ export default function ItemsPage({ online }) {
   const [q, setQ] = useState('');
   const [neededOnly, setNeededOnly] = useState(false);
   const [frozen, setFrozen] = useState(null); // null = all, true = frozen, false = ambient
+  const [category, setCategory] = useState('');
+  const [categories, setCategories] = useState([]);
   const [status, setStatus] = useState(null);
   const [revealed, setRevealed] = useState(() => new Set());
 
   const refresh = useCallback(
-    () => listItems(q, neededOnly, frozen).then(setItems).catch(() => {}),
-    [q, neededOnly, frozen]
+    () => listItems(q, neededOnly, frozen, category).then(setItems).catch(() => {}),
+    [q, neededOnly, frozen, category]
   );
+
+  useEffect(() => { listCategories().then(setCategories).catch(() => {}); }, []);
 
   useEffect(() => {
     const t = setTimeout(refresh, 200);
@@ -40,7 +44,7 @@ export default function ItemsPage({ online }) {
 
   // Goes through the scan endpoint so manual adjustments still appear in history.
   const adjust = async (item, delta) => {
-    await scan({ barcode: item.barcode, delta }).catch(() => {});
+    await scan({ barcode: item.barcode, delta, source: 'manual' }).catch(() => {});
     refresh();
   };
 
@@ -62,17 +66,19 @@ export default function ItemsPage({ online }) {
       const byStore = new Map();
       for (const item of needed) {
         const key = item.store || 'Any store';
-        if (!byStore.has(key)) byStore.set(key, { frozen: [], ambient: [] });
-        byStore.get(key)[item.frozen ? 'frozen' : 'ambient'].push(item);
+        const categoryKey = item.category || 'Uncategorised';
+        if (!byStore.has(key)) byStore.set(key, new Map());
+        if (!byStore.get(key).has(categoryKey)) byStore.get(key).set(categoryKey, []);
+        byStore.get(key).get(categoryKey).push(item);
       }
 
       const lines = [`Stockaroo shopping list — ${new Date().toLocaleString()}`, ''];
       for (const store of [...byStore.keys()].sort()) {
         lines.push(store, '='.repeat(store.length));
-        for (const [group, heading] of [['ambient', 'Ambient'], ['frozen', 'Frozen']]) {
-          const list = byStore.get(store)[group];
-          if (list.length === 0) continue;
-          lines.push(`  ${heading}`);
+        const categoriesByName = byStore.get(store);
+        for (const categoryName of [...categoriesByName.keys()].sort()) {
+          const list = categoriesByName.get(categoryName);
+          lines.push(`  ${categoryName}`);
           for (const item of list.sort((a, b) => a.name.localeCompare(b.name))) {
             const size = item.size ? ` (${item.size})` : '';
             lines.push(`    [ ] ${item.name}${size} — have ${item.quantity}, min ${item.min_stock}`);
@@ -140,6 +146,17 @@ export default function ItemsPage({ online }) {
           <option value="frozen">Frozen only</option>
           <option value="ambient">Non-frozen only</option>
         </select>
+        <select
+          className="input auto"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          aria-label="Filter by category"
+        >
+          <option value="">All categories</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.name}>{c.name}</option>
+          ))}
+        </select>
       </div>
 
       {status && <p className={`status ${status.kind}`}>{status.text}</p>}
@@ -177,8 +194,8 @@ export default function ItemsPage({ online }) {
                 </td>
                 <td data-label="Name">
                   {item.brand ? `${item.brand} - ${item.name}` : item.name}
-                  {(item.store || item.size) && (
-                    <span className="meta">{[item.store, item.size].filter(Boolean).join(' · ')}</span>
+                  {(item.category || item.store || item.size) && (
+                    <span className="meta">{[item.category, item.store, item.size].filter(Boolean).join(' · ')}</span>
                   )}
                   {revealed.has(item.id) && (
                     <span className="mono barcode-reveal">{item.barcode}</span>

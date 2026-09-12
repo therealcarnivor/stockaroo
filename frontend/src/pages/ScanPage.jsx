@@ -1,23 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { listScans, listStores, scan } from '../api.js';
+import { listBrands, listCategories, listScans, listStores, scan, setMqttDirection } from '../api.js';
 import { enqueue, flush, queueSize } from '../offline.js';
 import BarcodeIcon from '../components/BarcodeIcon.jsx';
 import FrozenIcon from '../components/FrozenIcon.jsx';
+import BrandSelect from '../components/BrandSelect.jsx';
+import CategorySelect from '../components/CategorySelect.jsx';
 import StoreSelect from '../components/StoreSelect.jsx';
 
 const TINT_MS = 1400;
+const REFRESH_MS = 5000;
+const scanTint = (scan) => (scan.source === 'mqtt' ? 'tint-mqtt' : scan.created ? 'tint-new' : 'tint-ok');
 
 export default function ScanPage({ online }) {
   const [barcode, setBarcode] = useState('');
   const [direction, setDirection] = useState(1); // 1 = stocking in, -1 = using up
   const [pending, setPending] = useState(null); // barcode awaiting a name
-  const [details, setDetails] = useState({ name: '', store: '', size: '', frozen: false });
+  const [details, setDetails] = useState({ name: '', store: '', brand: '', category: '', size: '', frozen: false });
   const [status, setStatus] = useState(null);
   const [recent, setRecent] = useState([]);
   const [stores, setStores] = useState([]);
+  const [brands, setBrands] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [queued, setQueued] = useState(queueSize());
   const [revealed, setRevealed] = useState(() => new Set());
   const [tint, setTint] = useState(null); // 'ok' = known barcode, 'new' = just created
+  const [keyboard, setKeyboard] = useState(false);
   const barcodeRef = useRef(null);
   const nameRef = useRef(null);
   const tintTimer = useRef(null);
@@ -36,7 +43,21 @@ export default function ScanPage({ online }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) refresh();
+    };
+    const id = window.setInterval(tick, REFRESH_MS);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [refresh]);
+
   useEffect(() => { listStores().then(setStores).catch(() => {}); }, []);
+  useEffect(() => { listBrands().then(setBrands).catch(() => {}); }, []);
+  useEffect(() => { listCategories().then(setCategories).catch(() => {}); }, []);
 
   useEffect(() => {
     if (online) drain();
@@ -57,14 +78,14 @@ export default function ScanPage({ online }) {
   };
 
   const submitScan = async (code, newItem) => {
-    const payload = { barcode: code, ...newItem, delta: direction };
+    const payload = { barcode: code, ...newItem, delta: direction, source: 'hand' };
     setBarcode('');
 
     try {
       const item = await scan(payload);
       setStatus({ kind: 'ok', text: `${item.name} — qty ${item.quantity}` });
       setPending(null);
-      setDetails({ name: '', store: '', size: '', frozen: false });
+      setDetails({ name: '', store: '', brand: '', category: '', size: '', frozen: false });
       // newItem is only passed once the name form completes a brand-new barcode.
       flashTint(newItem ? 'new' : 'ok');
       refresh();
@@ -73,7 +94,7 @@ export default function ScanPage({ online }) {
         setQueued(enqueue(payload));
         setStatus({ kind: 'info', text: `Offline — ${code} queued` });
         setPending(null);
-        setDetails({ name: '', store: '', size: '', frozen: false });
+        setDetails({ name: '', store: '', brand: '', category: '', size: '', frozen: false });
       } else if (err.status === 404 && err.body?.error === 'unknown_barcode') {
         setPending(code);
         setStatus({ kind: 'info', text: `New barcode ${code} — add its details` });
@@ -89,12 +110,19 @@ export default function ScanPage({ online }) {
     if (code) submitScan(code, null);
   };
 
+  const chooseDirection = (nextDirection) => {
+    setDirection(nextDirection);
+    setMqttDirection(nextDirection).catch(() => {});
+  };
+
   const onNameSubmit = (e) => {
     e.preventDefault();
     if (details.name.trim()) {
       submitScan(pending, {
         name: details.name.trim(),
         store: details.store.trim(),
+        brand: details.brand.trim(),
+        category: details.category.trim(),
         size: details.size.trim(),
         frozen: details.frozen
       });
@@ -115,13 +143,13 @@ export default function ScanPage({ online }) {
         <div className="row">
           <button
             className={`btn small ${direction === 1 ? 'primary' : ''}`}
-            onClick={() => setDirection(1)}
+            onClick={() => chooseDirection(1)}
           >
             Stock in
           </button>
           <button
             className={`btn small ${direction === -1 ? 'primary' : ''}`}
-            onClick={() => setDirection(-1)}
+            onClick={() => chooseDirection(-1)}
           >
             Use up
           </button>
@@ -131,20 +159,32 @@ export default function ScanPage({ online }) {
       {!pending ? (
         <form className={`card${tint ? ` tint-${tint}` : ''}`} onSubmit={onBarcodeSubmit}>
           <label htmlFor="barcode">Barcode ({direction === 1 ? 'adding' : 'removing'})</label>
-          <input
-            id="barcode"
-            ref={barcodeRef}
-            className="input big"
-            value={barcode}
-            onChange={(e) => setBarcode(e.target.value)}
-            onBlur={() => setTimeout(() => barcodeRef.current?.focus(), 0)}
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck="false"
-            inputMode="none"
-            placeholder="Scan or type a barcode"
-          />
+          <div className="row">
+            <input
+              id="barcode"
+              ref={barcodeRef}
+              className="input big grow"
+              value={barcode}
+              onChange={(e) => setBarcode(e.target.value)}
+              onBlur={() => !keyboard && setTimeout(() => barcodeRef.current?.focus(), 0)}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+              inputMode={keyboard ? 'text' : 'none'}
+              placeholder="Scan or type a barcode"
+            />
+            <button
+              className={`btn ${keyboard ? 'primary' : ''}`}
+              type="button"
+              onClick={() => {
+                setKeyboard((v) => !v);
+                setTimeout(() => barcodeRef.current?.focus(), 0);
+              }}
+            >
+              Keyboard
+            </button>
+          </div>
           <button className="btn primary" type="submit">Record</button>
         </form>
       ) : (
@@ -164,6 +204,18 @@ export default function ScanPage({ online }) {
               stores={stores}
               value={details.store}
               onChange={(store) => setDetails({ ...details, store })}
+            />
+            <BrandSelect
+              className="input grow"
+              brands={brands}
+              value={details.brand}
+              onChange={(brand) => setDetails({ ...details, brand })}
+            />
+            <CategorySelect
+              className="input grow"
+              categories={categories}
+              value={details.category}
+              onChange={(category) => setDetails({ ...details, category })}
             />
             <input
               className="input grow"
@@ -187,7 +239,7 @@ export default function ScanPage({ online }) {
               type="button"
               onClick={() => {
                 setPending(null);
-                setDetails({ name: '', store: '', size: '', frozen: false });
+                setDetails({ name: '', store: '', brand: '', category: '', size: '', frozen: false });
                 setStatus(null);
               }}
             >
@@ -211,7 +263,7 @@ export default function ScanPage({ online }) {
       <div className="scroll-panel">
         <ul className="list">
           {recent.slice(0, VISIBLE_SCANS).map((s) => (
-            <li key={s.id} className={s.created ? 'tint-new' : 'tint-ok'}>
+            <li key={s.id} className={scanTint(s)}>
               <span className="icon-cell">
                 <button
                   className="icon-toggle"
@@ -226,8 +278,8 @@ export default function ScanPage({ online }) {
               </span>
               <span>
                 {s.name}
-                {(s.store || s.size) && (
-                  <span className="meta">{[s.store, s.size].filter(Boolean).join(' · ')}</span>
+                {(s.category || s.store || s.size) && (
+                  <span className="meta">{[s.category, s.store, s.size].filter(Boolean).join(' · ')}</span>
                 )}
                 {revealed.has(s.id) && <span className="mono barcode-reveal">{s.barcode}</span>}
               </span>

@@ -7,7 +7,15 @@ const router = express.Router();
 const cleanName = (v) => (typeof v === 'string' ? v.trim().slice(0, 60) : '');
 
 router.get('/', (req, res) => {
-  res.json(db.prepare('SELECT id, name FROM stores ORDER BY name COLLATE NOCASE').all());
+  res.json(
+    db
+      .prepare(
+        `SELECT s.id, s.name,
+                (SELECT COUNT(*) FROM items i WHERE i.store = s.name) AS itemCount
+         FROM stores s ORDER BY s.name COLLATE NOCASE`
+      )
+      .all()
+  );
 });
 
 router.post('/', requireAdmin, (req, res) => {

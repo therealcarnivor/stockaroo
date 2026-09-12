@@ -1,16 +1,89 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { exportBackup, getStats, restoreBackup, zeroStock } from '../api.js';
+import {
+  exportBackup,
+  getMqttSettings,
+  getStats,
+  listScans,
+  restoreBackup,
+  updateMqttSettings,
+  zeroStock
+} from '../api.js';
 import { ADMIN_ERRORS } from '../adminErrors.js';
+
+const emptyMqttForm = {
+  enabled: false,
+  url: '',
+  topic: '',
+  username: '',
+  clientId: '',
+  delta: 1,
+  passwordSet: false,
+  running: false,
+  connected: false,
+  lastMessageAt: null,
+  lastError: null
+};
+
+const REFRESH_MS = 5000;
+const scanTint = (scan) => (scan.source === 'mqtt' ? 'tint-mqtt' : scan.created ? 'tint-new' : 'tint-ok');
 
 export default function AdminPage() {
   const [status, setStatus] = useState(null);
   const [stats, setStats] = useState(null);
+  const [mqttForm, setMqttForm] = useState(emptyMqttForm);
+  const [mqttPassword, setMqttPassword] = useState('');
+  const [mqttScans, setMqttScans] = useState([]);
+  const [clearMqttPassword, setClearMqttPassword] = useState(false);
   const backupRef = useRef(null);
+
+  const refreshMqttScans = () =>
+    listScans()
+      .then((scans) => setMqttScans(scans.filter((scan) => scan.source === 'mqtt').slice(0, 20)))
+      .catch(() => {});
 
   useEffect(() => {
     getStats().then(setStats).catch(() => {});
+    getMqttSettings().then((settings) => setMqttForm({ ...emptyMqttForm, ...settings })).catch(() => {});
+    refreshMqttScans();
   }, []);
+
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) refreshMqttScans();
+    };
+    const id = window.setInterval(tick, REFRESH_MS);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, []);
+
+  const saveMqtt = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        enabled: mqttForm.enabled,
+        url: mqttForm.url.trim(),
+        topic: mqttForm.topic.trim(),
+        username: mqttForm.username.trim(),
+        clientId: mqttForm.clientId.trim(),
+        delta: Number(mqttForm.delta),
+        clearPassword: clearMqttPassword
+      };
+      if (mqttPassword) payload.password = mqttPassword;
+
+      const result = await updateMqttSettings(payload);
+      setMqttForm({ ...emptyMqttForm, ...result });
+      setMqttPassword('');
+      setClearMqttPassword(false);
+      setStatus({ kind: 'ok', text: 'MQTT settings saved.' });
+      refreshMqttScans();
+    } catch (err) {
+      setStatus({ kind: 'error', text: ADMIN_ERRORS[err.message] || err.message });
+    }
+  };
 
   const downloadBackup = async () => {
     try {
@@ -37,7 +110,7 @@ export default function AdminPage() {
       const result = await restoreBackup(data);
       setStatus({
         kind: 'ok',
-        text: `Restored ${result.items} items, ${result.stores} stores, ${result.brands} brands, ${result.scans} scans, ${result.users} users.`
+        text: `Restored ${result.items} items, ${result.stores} stores, ${result.brands} brands, ${result.categories} categories, ${result.scans} scans, ${result.users} users.`
       });
     } catch (err) {
       setStatus({
@@ -88,6 +161,10 @@ export default function AdminPage() {
             <strong>{stats.brands}</strong>
             <span className="muted">Brands</span>
           </div>
+          <div className="stat-card">
+            <strong>{stats.categories}</strong>
+            <span className="muted">Categories</span>
+          </div>
         </div>
       )}
 
@@ -104,7 +181,121 @@ export default function AdminPage() {
           <strong>Brands</strong>
           <span className="muted">Curate the brand list used by items</span>
         </Link>
+        <Link className="card admin-link" to="/admin/categories">
+          <strong>Categories</strong>
+          <span className="muted">Curate the category list used by items</span>
+        </Link>
       </div>
+
+      <h2>MQTT scanner</h2>
+      <form className="card" onSubmit={saveMqtt}>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={mqttForm.enabled}
+            onChange={(e) => setMqttForm({ ...mqttForm, enabled: e.target.checked })}
+          />
+          Listen for barcode scans
+        </label>
+        <div className="row">
+          <input
+            className="input grow"
+            placeholder="Broker URL, e.g. mqtt://192.168.1.10:1883"
+            value={mqttForm.url}
+            onChange={(e) => setMqttForm({ ...mqttForm, url: e.target.value })}
+            autoCapitalize="off"
+            autoCorrect="off"
+          />
+          <input
+            className="input grow"
+            placeholder="Topic, e.g. stockaroo/scans"
+            value={mqttForm.topic}
+            onChange={(e) => setMqttForm({ ...mqttForm, topic: e.target.value })}
+            autoCapitalize="off"
+            autoCorrect="off"
+          />
+        </div>
+        <div className="row">
+          <input
+            className="input grow"
+            placeholder="Username"
+            value={mqttForm.username}
+            onChange={(e) => setMqttForm({ ...mqttForm, username: e.target.value })}
+            autoCapitalize="off"
+            autoCorrect="off"
+          />
+          <input
+            className="input grow"
+            type="password"
+            placeholder={mqttForm.passwordSet ? 'Password set; leave blank to keep' : 'Password'}
+            value={mqttPassword}
+            onChange={(e) => setMqttPassword(e.target.value)}
+            autoComplete="new-password"
+            disabled={clearMqttPassword}
+          />
+          {mqttForm.passwordSet && (
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={clearMqttPassword}
+                onChange={(e) => setClearMqttPassword(e.target.checked)}
+              />
+              Clear password
+            </label>
+          )}
+        </div>
+        <div className="row">
+          <input
+            className="input grow"
+            placeholder="Client ID"
+            value={mqttForm.clientId}
+            onChange={(e) => setMqttForm({ ...mqttForm, clientId: e.target.value })}
+            autoCapitalize="off"
+            autoCorrect="off"
+          />
+          <input
+            className="input min-input"
+            type="number"
+            min="-1000"
+            max="1000"
+            step="1"
+            value={mqttForm.delta}
+            onChange={(e) => setMqttForm({ ...mqttForm, delta: e.target.value })}
+            aria-label="Scan amount"
+          />
+          <button className="btn primary" type="submit">Save MQTT</button>
+        </div>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Barcode</th>
+                <th>Qty</th>
+                <th>Scanned</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mqttScans.map((scan) => (
+                <tr key={scan.id} className={scanTint(scan)}>
+                  <td>{scan.name}</td>
+                  <td className="mono">{scan.barcode}</td>
+                  <td>{scan.delta > 0 ? `+${scan.delta}` : scan.delta}</td>
+                  <td>{scan.scanned_at}</td>
+                </tr>
+              ))}
+              {mqttScans.length === 0 && (
+                <tr>
+                  <td colSpan="4" className="muted">
+                    {mqttForm.running ? (mqttForm.connected ? 'Connected; no MQTT scans yet.' : 'Connecting; no MQTT scans yet.') : 'MQTT scanner disabled.'}
+                    {mqttForm.lastError ? ` ${mqttForm.lastError}` : ''}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </form>
 
       <h2>Backup</h2>
       <div className="card">

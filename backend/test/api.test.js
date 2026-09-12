@@ -80,13 +80,50 @@ test('scan with a name creates the item, repeats increment', async () => {
   assert.equal(item.quantity, 1);
   item = await (await api('POST', '/api/scans', { barcode: '111' })).json();
   assert.equal(item.quantity, 2);
+  item = await (await api('POST', '/api/scans', { barcode: '111', source: 'manual' })).json();
+  assert.equal(item.quantity, 3);
+  const scans = await (await api('GET', '/api/scans')).json();
+  assert.equal(scans[0].source, 'manual');
 });
 
 test('scan-out decrements and never goes below zero', async () => {
   let item = await (await api('POST', '/api/scans', { barcode: '111', delta: -1 })).json();
-  assert.equal(item.quantity, 1);
+  assert.equal(item.quantity, 2);
   item = await (await api('POST', '/api/scans', { barcode: '111', delta: -5 })).json();
   assert.equal(item.quantity, 0);
+});
+
+test('admins can configure mqtt scanner settings without exposing the password', async () => {
+  let res = await api('PUT', '/api/settings/mqtt', { enabled: true, url: '', topic: '' });
+  assert.equal(res.status, 400);
+  assert.equal((await res.json()).error, 'mqtt_missing_config');
+
+  res = await api('PUT', '/api/settings/mqtt', {
+    enabled: false,
+    url: 'mqtt://broker.local:1883',
+    topic: 'stockaroo/scans',
+    username: 'scanner',
+    password: 'secret',
+    clientId: 'stockaroo-test',
+    delta: 1
+  });
+  assert.equal(res.status, 200);
+  let body = await res.json();
+  assert.equal(body.url, 'mqtt://broker.local:1883');
+  assert.equal(body.topic, 'stockaroo/scans');
+  assert.equal(body.password, undefined);
+  assert.equal(body.passwordSet, true);
+
+  body = await (await api('GET', '/api/settings/mqtt')).json();
+  assert.equal(body.password, undefined);
+  assert.equal(body.passwordSet, true);
+});
+
+test('scan page can set mqtt scan direction', async () => {
+  const res = await api('POST', '/api/settings/mqtt/direction', { direction: -1 });
+  assert.equal(res.status, 200);
+  const body = await (await api('GET', '/api/settings/mqtt')).json();
+  assert.equal(body.delta, -1);
 });
 
 test('invalid barcode is rejected', async () => {
@@ -100,18 +137,23 @@ test('a full backup round-trips the whole database', async () => {
   await api('POST', '/api/scans', { barcode: '333', name: 'Pasta' });
   await api('POST', '/api/scans', { barcode: '222', delta: 3 });
 
-  // Assign a brand and a barcode alias so their round-trip can be checked too.
+  // Assign a brand, category and barcode alias so their round-trip can be checked too.
   await api('POST', '/api/brands', { name: 'Tilda' });
+  await api('POST', '/api/categories', { name: 'Grains' });
   const before = await (await api('GET', '/api/items')).json();
   const rice = before.find((i) => i.barcode === '222');
-  await api('PATCH', `/api/items/${rice.id}`, { brand: 'Tilda' });
+  await api('PATCH', `/api/items/${rice.id}`, { brand: 'Tilda', category: 'Grains' });
   await api('POST', `/api/items/${rice.id}/barcodes`, { barcode: '222-ALT' });
+  const grains = await (await api('GET', '/api/items?category=Grains')).json();
+  assert.ok(grains.some((i) => i.barcode === '222'));
 
   const backup = await (await api('GET', '/api/backup')).json();
-  assert.equal(backup.version, 4);
+  assert.equal(backup.version, 6);
   assert.ok(backup.items.length >= 2);
   assert.ok(backup.brands.some((b) => b.name === 'Tilda'));
+  assert.ok(backup.categories.some((c) => c.name === 'Grains'));
   assert.ok(backup.items.find((i) => i.barcode === '222').brand === 'Tilda');
+  assert.ok(backup.items.find((i) => i.barcode === '222').category === 'Grains');
   assert.ok(backup.item_barcodes.some((b) => b.barcode === '222-ALT'));
   assert.ok(backup.users.some((u) => u.username === 'admin' && u.password_hash));
   assert.ok(backup.scans.length > 0);
@@ -125,6 +167,7 @@ test('a full backup round-trips the whole database', async () => {
   const result = await (await api('POST', '/api/restore', { data: backup })).json();
   assert.equal(result.items, backup.items.length);
   assert.equal(result.brands, backup.brands.length);
+  assert.equal(result.categories, backup.categories.length);
   assert.equal(result.users, backup.users.length);
 
   // The restore drops sessions, so sign back in.
@@ -144,11 +187,14 @@ test('a full backup round-trips the whole database', async () => {
   // Confirm the brand and extra barcode alias survived the restore.
   const restoredRice = items.find((i) => i.barcode === '222');
   assert.equal(restoredRice.brand, 'Tilda');
+  assert.equal(restoredRice.category, 'Grains');
   const riceHistory = await (await api('GET', `/api/items/${restoredRice.id}/history`)).json();
   assert.ok(riceHistory.item.barcodes.includes('222-ALT'));
 
   const brandsAfter = await (await api('GET', '/api/brands')).json();
   assert.ok(brandsAfter.some((b) => b.name === 'Tilda'));
+  const categoriesAfter = await (await api('GET', '/api/categories')).json();
+  assert.ok(categoriesAfter.some((c) => c.name === 'Grains'));
 });
 
 test('restore rejects a backup with no admin', async () => {

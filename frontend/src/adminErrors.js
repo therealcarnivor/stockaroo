@@ -11,11 +11,16 @@ export const ADMIN_ERRORS = {
   brand_exists: 'That brand already exists.',
   invalid_brand: 'Enter a brand name.',
   unknown_brand: 'Choose a brand from the list.',
+  category_exists: 'That category already exists.',
+  invalid_category: 'Enter a category name.',
+  unknown_category: 'Choose a category from the list.',
   unsupported_version: 'That file is not a supported Stockaroo backup.',
   no_admin_in_backup: 'That backup contains no admin user.',
   invalid_payload: 'That file is not a valid backup.',
   invalid_barcode: 'Enter a valid barcode.',
   barcode_in_use: 'That barcode is already used by another item.',
   last_barcode: 'An item needs at least one barcode.',
-  invalid_merge: 'Choose a different item to merge into.'
+  invalid_merge: 'Choose a different item to merge into.',
+  mqtt_missing_config: 'Enter a broker URL and topic before enabling MQTT.',
+  invalid_delta: 'Enter a non-zero scan amount between -1000 and 1000.'
 };

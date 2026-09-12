@@ -51,6 +51,14 @@ export const updateBrand = (id, name) =>
 export const deleteBrand = (id, force = false) =>
   request(`/api/brands/${id}${force ? '?force=1' : ''}`, { method: 'DELETE' });
 
+export const listCategories = () => request('/api/categories');
+export const createCategory = (name) =>
+  request('/api/categories', { method: 'POST', body: JSON.stringify({ name }) });
+export const updateCategory = (id, name) =>
+  request(`/api/categories/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+export const deleteCategory = (id, force = false) =>
+  request(`/api/categories/${id}${force ? '?force=1' : ''}`, { method: 'DELETE' });
+
 export const exportBackup = () => request('/api/backup');
 export const restoreBackup = (data) =>
   request('/api/restore', { method: 'POST', body: JSON.stringify({ data }) });
@@ -59,11 +67,18 @@ export const getStats = () => request('/api/stats');
 
 export const zeroStock = () => request('/api/zero-stock', { method: 'POST' });
 
-export const listItems = (q = '', neededOnly = false, frozen = null) => {
+export const getMqttSettings = () => request('/api/settings/mqtt');
+export const updateMqttSettings = (settings) =>
+  request('/api/settings/mqtt', { method: 'PUT', body: JSON.stringify(settings) });
+export const setMqttDirection = (direction) =>
+  request('/api/settings/mqtt/direction', { method: 'POST', body: JSON.stringify({ direction }) });
+
+export const listItems = (q = '', neededOnly = false, frozen = null, category = '') => {
   const params = new URLSearchParams();
   if (q) params.set('q', q);
   if (neededOnly) params.set('needed', '1');
   if (frozen !== null) params.set('frozen', frozen ? '1' : '0');
+  if (category) params.set('category', category);
   const query = params.toString();
   return request(`/api/items${query ? `?${query}` : ''}`);
 };
@@ -72,10 +87,10 @@ export const listScans = () => request('/api/scans');
 
 export const itemHistory = (id) => request(`/api/items/${id}/history`);
 
-export const scan = ({ barcode, name = null, store = null, size = null, frozen = false, delta = 1 }) =>
+export const scan = ({ barcode, name = null, store = null, brand = null, category = null, size = null, frozen = false, delta = 1, source = 'hand' }) =>
   request('/api/scans', {
     method: 'POST',
-    body: JSON.stringify({ barcode, name, store, size, frozen, delta })
+    body: JSON.stringify({ barcode, name, store, brand, category, size, frozen, delta, source })
   });
 
 export const updateItem = (id, patch) =>

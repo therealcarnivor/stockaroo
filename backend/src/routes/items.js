@@ -1,21 +1,17 @@
 const express = require('express');
 const { db } = require('../db');
+const {
+  BARCODE_RE,
+  cleanBarcode,
+  cleanName,
+  cleanField,
+  knownStore,
+  knownBrand,
+  knownCategory,
+  scanBarcode
+} = require('../scanService');
 
 const router = express.Router();
-
-const BARCODE_RE = /^[A-Za-z0-9._-]{1,64}$/;
-
-const cleanBarcode = (v) => (typeof v === 'string' ? v.trim() : '');
-const cleanName = (v) => (typeof v === 'string' ? v.trim().slice(0, 200) : '');
-const cleanField = (v) => (typeof v === 'string' ? v.trim().slice(0, 60) : '');
-
-// Stores are curated by admins; items may only reference an existing one (or none).
-const knownStore = (name) =>
-  name === '' || !!db.prepare('SELECT 1 FROM stores WHERE name = ?').get(name);
-
-// Brands are curated by admins; items may only reference an existing one (or none).
-const knownBrand = (name) =>
-  name === '' || !!db.prepare('SELECT 1 FROM brands WHERE name = ?').get(name);
 
 // An item only joins the shopping list once a minimum is set and stock reaches it.
 const NEEDED_SQL = '(min_stock > 0 AND quantity <= min_stock)';
@@ -23,18 +19,20 @@ const NEEDED_SQL = '(min_stock > 0 AND quantity <= min_stock)';
 router.get('/items', (req, res) => {
   const q = cleanName(req.query.q);
   const neededOnly = req.query.needed === '1';
+  const category = cleanField(req.query.category);
   // Absent means "either"; '1'/'0' narrow to frozen or ambient.
   const frozen = req.query.frozen === '1' ? 1 : req.query.frozen === '0' ? 0 : null;
   const rows = db
     .prepare(
       `SELECT DISTINCT i.*, ${NEEDED_SQL} AS needed FROM items i
        LEFT JOIN item_barcodes b ON b.item_id = i.id
-       WHERE (@like IS NULL OR i.name LIKE @like OR b.barcode LIKE @like OR i.store LIKE @like OR i.brand LIKE @like OR i.size LIKE @like)
+       WHERE (@like IS NULL OR i.name LIKE @like OR b.barcode LIKE @like OR i.store LIKE @like OR i.brand LIKE @like OR i.category LIKE @like OR i.size LIKE @like)
          AND (@neededOnly = 0 OR ${NEEDED_SQL})
+         AND (@category = '' OR i.category = @category)
          AND (@frozen IS NULL OR i.frozen = @frozen)
        ORDER BY i.name COLLATE NOCASE LIMIT 500`
     )
-    .all({ like: q ? `%${q}%` : null, neededOnly: neededOnly ? 1 : 0, frozen });
+    .all({ like: q ? `%${q}%` : null, neededOnly: neededOnly ? 1 : 0, category, frozen });
   res.json(rows);
 });
 
@@ -49,7 +47,7 @@ router.get('/items/:id/history', (req, res) => {
     .map((r) => r.barcode);
 
   const scans = db
-    .prepare('SELECT id, delta, scanned_at FROM scans WHERE item_id = ? ORDER BY id DESC LIMIT 200')
+    .prepare('SELECT id, delta, scanned_at, source FROM scans WHERE item_id = ? ORDER BY id DESC LIMIT 200')
     .all(id);
   const totals = db
     .prepare(
@@ -75,49 +73,9 @@ router.get('/items/:barcode', (req, res) => {
 
 // Scan endpoint: creates the item on first sight, otherwise bumps its count.
 router.post('/scans', (req, res) => {
-  const barcode = cleanBarcode(req.body?.barcode);
-  const name = cleanName(req.body?.name);
-  const store = cleanField(req.body?.store);
-  const size = cleanField(req.body?.size);
-  const frozen = req.body?.frozen ? 1 : 0;
-  const delta = Number.isInteger(req.body?.delta) ? req.body.delta : 1;
-
-  if (!BARCODE_RE.test(barcode)) return res.status(400).json({ error: 'invalid_barcode' });
-  if (Math.abs(delta) > 1000) return res.status(400).json({ error: 'invalid_delta' });
-  if (!knownStore(store)) return res.status(400).json({ error: 'unknown_store' });
-
-  const result = db.transaction(() => {
-    let item = db
-      .prepare('SELECT i.* FROM items i JOIN item_barcodes b ON b.item_id = i.id WHERE b.barcode = ?')
-      .get(barcode);
-    let created = false;
-
-    if (!item) {
-      if (!name) return { needsName: true, barcode };
-      const info = db
-        .prepare(
-          'INSERT INTO items (barcode, name, store, size, frozen, quantity) VALUES (?, ?, ?, ?, ?, 0)'
-        )
-        .run(barcode, name, store, size, frozen);
-      item = db.prepare('SELECT * FROM items WHERE id = ?').get(info.lastInsertRowid);
-      db.prepare('INSERT INTO item_barcodes (item_id, barcode) VALUES (?, ?)').run(item.id, barcode);
-      created = true;
-    }
-
-    db.prepare('INSERT INTO scans (item_id, delta, created) VALUES (?, ?, ?)').run(
-      item.id,
-      delta,
-      created ? 1 : 0
-    );
-    db.prepare(
-      `UPDATE items SET quantity = MAX(quantity + ?, 0), updated_at = datetime('now') WHERE id = ?`
-    ).run(delta, item.id);
-
-    return { created, item: db.prepare('SELECT * FROM items WHERE id = ?').get(item.id) };
-  })();
-
-  if (result.needsName) return res.status(404).json({ error: 'unknown_barcode', barcode });
-  res.status(result.created ? 201 : 200).json(result.item);
+  const result = scanBarcode(req.body ?? {});
+  if (result.error) return res.status(result.status).json({ error: result.error, barcode: result.barcode });
+  res.status(result.status).json(result.item);
 });
 
 router.patch('/items/:id', (req, res) => {
@@ -129,7 +87,7 @@ router.patch('/items/:id', (req, res) => {
   const name = cleanName(req.body?.name);
   if (name) db.prepare(`UPDATE items SET name = ?, updated_at = datetime('now') WHERE id = ?`).run(name, id);
 
-  for (const field of ['store', 'size', 'brand']) {
+  for (const field of ['store', 'size', 'brand', 'category']) {
     if (typeof req.body?.[field] === 'string') {
       const value = cleanField(req.body[field]);
       if (field === 'store' && !knownStore(value)) {
@@ -137,6 +95,9 @@ router.patch('/items/:id', (req, res) => {
       }
       if (field === 'brand' && !knownBrand(value)) {
         return res.status(400).json({ error: 'unknown_brand' });
+      }
+      if (field === 'category' && !knownCategory(value)) {
+        return res.status(400).json({ error: 'unknown_category' });
       }
       db.prepare(`UPDATE items SET ${field} = ?, updated_at = datetime('now') WHERE id = ?`).run(
         value,
@@ -253,7 +214,7 @@ router.post('/items/:id/merge', (req, res) => {
 router.get('/scans', (req, res) => {
   const rows = db
     .prepare(
-      `SELECT s.id, s.delta, s.scanned_at, s.created, i.barcode, i.name, i.store, i.size, i.frozen
+      `SELECT s.id, s.delta, s.scanned_at, s.created, s.source, i.barcode, i.name, i.store, i.category, i.size, i.frozen
        FROM scans s JOIN items i ON i.id = s.item_id
        ORDER BY s.id DESC LIMIT 100`
     )
